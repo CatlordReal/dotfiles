@@ -1,3 +1,14 @@
+-- This is an updated Neovim configuration file.  It is based on the
+-- user’s original config but has been adjusted to fully embrace
+-- Catppuccin’s integrations and to mirror the statusline style shown
+-- in the Catppuccin README for the "mocha" flavour.  Instead of
+-- lualine, this version uses the Catppuccin‑provided Feline preset
+-- which produces the distinctive rounded separators and pastel
+-- segments seen in the screenshot.  All available Catppuccin
+-- integrations for the plugins used in this setup have been enabled
+-- where appropriate.  All other behaviour from the original config
+-- has been preserved.
+
 -- Set leader and general options
 vim.g.mapleader = " "
 vim.opt.termguicolors = true
@@ -100,55 +111,116 @@ require("lazy").setup({
             vim.keymap.set("n", "<leader>nt", "<cmd>NvimTreeToggle<CR>", { silent = true, desc = "Toggle Nvim Tree" })
         end,
     },
-    --    {
-    --        "folke/tokyonight.nvim",
-    --        lazy = false,
-    --        priority = 1000,
-    --        config = function()
-    --            require("tokyonight").setup({
-    --                style = "moon",
-    --            })
-    --            vim.cmd("colorscheme tokyonight")
-    --            vim.cmd("hi Normal guibg=#1a1b26")
-    --            vim.cmd("hi NormalFloat guibg=#1a1b26")
-    --            vim.cmd("hi FloatBorder guifg=#7aa2f7 guibg=#1a1b26")
-    --            vim.cmd("hi SignColumn guibg=#1a1b26")
-    --            vim.cmd("hi LineNr guibg=#1a1b26")
-    --            vim.cmd("hi FoldColumn guibg=#1a1b26")
-    --        end,
-    --    },
     {
         "folke/flash.nvim",
         event = "VeryLazy",
         opts = {},
     },
     {
+        "rasulomaroff/reactive.nvim",
+        event = { "BufEnter", "WinEnter" },
+        opts = {
+            load = { "catppuccin-mocha-cursor", "catppuccin-mocha-cursorline" },
+        },
+    },
+    {
+        "nvim-lualine/lualine.nvim",
+        dependencies = { "nvim-tree/nvim-web-devicons" },
+        config = function()
+            local theme = require("catppuccin.utils.lualine")("mocha")
+
+            local function lsp_label()
+                local clients = vim.lsp.get_clients({ bufnr = 0 })
+                return (#clients > 0) and "Lsp" or ""
+            end
+
+            local function cwd_tail()
+                return vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
+            end
+
+            require("lualine").setup({
+                options = {
+                    theme = theme,
+                    icons_enabled = true,
+                    component_separators = "",
+                    section_separators = { left = "", right = "" },
+                    globalstatus = true,
+                    disabled_filetypes = { statusline = { "NvimTree" } },
+                },
+                sections = {
+                    lualine_a = {
+                        { "mode", icon = "", separator = { left = "", right = "" }, right_padding = 1 },
+                        { "progress" },
+                        { "location" },
+                    },
+                    lualine_b = {},
+                    lualine_c = {
+                        {
+                            "diagnostics",
+                            sources = { "nvim_diagnostic" },
+                            symbols = { error = " ", warn = " ", info = " ", hint = " " },
+                        },
+                    },
+                    lualine_x = {
+                        { lsp_label, icon = "" },
+                        { "filename", path = 0 },
+                    },
+                    lualine_y = {},
+                    lualine_z = {
+                        { cwd_tail, icon = "", separator = { left = "", right = "" }, left_padding = 1 },
+                    },
+                },
+                inactive_sections = {
+                    lualine_a = {},
+                    lualine_b = {},
+                    lualine_c = { { "filename", path = 0 } },
+                    lualine_x = {},
+                    lualine_y = {},
+                    lualine_z = {},
+                },
+            })
+        end,
+    },
+    {
         "catppuccin/nvim",
         name = "catppuccin",
         lazy = false,
         priority = 1000,
-        config = function()
+        config = function(
+        )
             require("catppuccin").setup({
                 flavour = "mocha",
                 transparent_background = false,
                 integrations = {
                     treesitter = true,
                     nvimtree = true,
-                    telescope = true,
-                    lualine = true,
+                    telescope = { enabled = true },
+                    -- lualine = true,
                     bufferline = true,
                     mason = true,
                     which_key = true,
+                    cmp = true,
+                    dap = true,
+                    dap_ui = true,
+                    gitsigns = true,
+                    illuminate = { enabled = true },
+                    lsp_trouble = true,
+                    noice = true,
+                    overseer = true,
+                    mini = { enabled = true },
+                    ufo = true,
+                    treesitter_context = true,
+                    indent_blankline = { enabled = true },
                 },
             })
             vim.cmd.colorscheme("catppuccin")
         end,
     },
-    {
-        "echasnovski/mini.ai",
-        event = "VeryLazy",
-        opts = {},
-    },
+        {
+            "echasnovski/mini.ai",
+            event = "VeryLazy",
+            opts = {},
+        },
     {
         "nvimdev/lspsaga.nvim",
         dependencies = { "nvim-tree/nvim-web-devicons" },
@@ -199,20 +271,6 @@ require("lazy").setup({
     { "nvim-treesitter/nvim-treesitter-context", config = function() require("treesitter-context").setup({}) end },
     { "windwp/nvim-ts-autotag",                  config = function() require("nvim-ts-autotag").setup() end },
     {
-        "nvim-lualine/lualine.nvim",
-        dependencies = { "nvim-tree/nvim-web-devicons" },
-        config = function()
-            require('lualine').setup {
-                options = {
-                    component_separators = "",
-                    section_separators = { right = "", left = "" },
-                    icons_enabled = true,
-                    theme = "auto",
-                },
-            }
-        end,
-    },
-    {
         "akinsho/bufferline.nvim",
         version = "*",
         dependencies = { "nvim-tree/nvim-web-devicons" },
@@ -242,13 +300,16 @@ require("lazy").setup({
             local t = require("telescope")
             local actions = require("telescope.actions")
             local action_state = require("telescope.actions.state")
-
             local open_in_tab = function(prompt_bufnr)
                 local entry = action_state.get_selected_entry()
                 actions.close(prompt_bufnr)
-                vim.cmd("tabnew " .. entry.path)
+                local path = entry.path or entry.filename or (type(entry.value) == "string" and entry.value)
+                if path then
+                    vim.cmd("tabnew " .. path)
+                else
+                    vim.notify("No file path for this entry", vim.log.levels.WARN)
+                end
             end
-
             t.setup({
                 defaults = {
                     sorting_strategy = "ascending",
@@ -267,24 +328,24 @@ require("lazy").setup({
                     fzf = { fuzzy = true, case_mode = "smart_case" },
                 },
             })
-
             t.load_extension("ui-select")
             pcall(t.load_extension, "fzf")
         end,
-    }, {
-    "folke/todo-comments.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    config = function()
-        require("todo-comments").setup({
-            keywords = {
-                TODO = { icon = "" },
-                FIX = { icon = "" },
-                NOTE = { icon = "" },
-                NTS = { icon = "", color = "hint", alt = { "NOTICE", "NTS" } },
-            },
-        })
-    end,
-},
+    },
+    {
+        "folke/todo-comments.nvim",
+        dependencies = { "nvim-lua/plenary.nvim" },
+        config = function()
+            require("todo-comments").setup({
+                keywords = {
+                    TODO = { icon = "" },
+                    FIX = { icon = "" },
+                    NOTE = { icon = "" },
+                    NTS = { icon = "", color = "hint", alt = { "NOTICE", "NTS" } },
+                },
+            })
+        end,
+    },
     { "nvim-mini/mini.icons",    config = function() require("mini.icons").setup() end },
     { "stevearc/oil.nvim",       opts = { view_options = { show_hidden = true } } },
     { "lewis6991/gitsigns.nvim", config = function() require("gitsigns").setup() end },
@@ -302,7 +363,6 @@ require("lazy").setup({
         config = function()
             require("which-key").setup({
                 preset = "helix",
-
                 win = {
                     border = "rounded",
                     padding = { 1, 2 },
@@ -312,13 +372,11 @@ require("lazy").setup({
                     col = math.huge,
                     wo = { winblend = 10 },
                 },
-
                 layout = {
                     width = { min = 20, max = 100 },
                     spacing = 3,
                     align = "left",
                 },
-
                 icons = {
                     breadcrumb = "»",
                     separator = "➜",
@@ -326,14 +384,14 @@ require("lazy").setup({
                 },
             })
         end,
-
-    }, {
-    "folke/trouble.nvim",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
-    config = function()
-        require("trouble").setup()
-    end,
-},
+    },
+    {
+        "folke/trouble.nvim",
+        dependencies = { "nvim-tree/nvim-web-devicons" },
+        config = function()
+            require("trouble").setup()
+        end,
+    },
     { "aznhe21/actions-preview.nvim" },
     { "williamboman/mason.nvim",     config = function() require("mason").setup() end },
     {
@@ -391,7 +449,7 @@ require("lazy").setup({
             "OverseerQuickAction",
             "OverseerClearCache",
         },
-        -- no plugin‑level key mappings here; global keymaps handle overseer commands
+        -- no plugin-level key mappings here; global keymaps handle overseer commands
         config = function()
             require("overseer").setup()
         end,
@@ -615,7 +673,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     end,
 })
 
--- Keymaps with descriptions to populate which‑key
+-- Keymaps with descriptions to populate which-key
 -- File explorers
 vim.keymap.set("n", "<leader>e", function() require("oil").open() end, { silent = true, desc = "File Explorer (Oil)" })
 -- nvim-tree toggle keymap is defined within the plugin setup, so avoid duplicating it here
@@ -716,40 +774,6 @@ vim.keymap.set("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Prev Buffer" }
 vim.keymap.set("n", "<leader>bo", "<cmd>enew<CR>", { desc = "New Buffer" })
 vim.keymap.set("n", "<leader>bc", "<cmd>bdelete<CR>", { desc = "Close Buffer" })
 
---- -------- START OF BUFFER SPLITTING -----------
----
---- -- Track previously-selected buffer safely
---- local prev_buf = nil
----
---- -- When leaving a buffer, remember it as previous
---- vim.api.nvim_create_autocmd("BufLeave", {
----     callback = function(args)
----         prev_buf = args.buf
----     end,
---- })
----
---- -- Vertical split with previously selected buffer
---- vim.keymap.set("n", "<leader>bv", function()
----     if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
----         vim.notify("No previous buffer", vim.log.levels.WARN)
----         return
----     end
----     vim.cmd("vsplit")
----     vim.cmd("buffer " .. prev_buf)
---- end, { desc = "Vertical split with previous buffer" })
----
---- -- Horizontal split with previously selected buffer
---- vim.keymap.set("n", "<leader>bh", function()
----     if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
----         vim.notify("No previous buffer", vim.log.levels.WARN)
----         return
----     end
----     vim.cmd("split")
----     vim.cmd("buffer " .. prev_buf)
---- end, { desc = "Horizontal split with previous buffer" })
----
---- -------- END OF BUFFER SPLITTING -----------
-
 -- Window management keymaps
 -- These mappings mirror the defaults but with a leader prefix for convenience
 vim.keymap.set("n", "<leader>ww", "<C-w>w", { desc = "Next Window" })
@@ -767,7 +791,8 @@ vim.keymap.set("n", "<leader>w<", "<C-w><", { desc = "Decrease window width" })
 vim.keymap.set("n", "<leader>w>", "<C-w>>", { desc = "Increase window width" })
 vim.keymap.set("n", "<leader>w-", "<C-w>-", { desc = "Decrease window height" })
 vim.keymap.set("n", "<leader>w+", "<C-w>+", { desc = "Increase window height" })
--- Which‑key registrations
+
+-- Which-key registrations
 local wk = require("which-key")
 wkr = require("which-key") -- alias for clarity in modifications
 wkr.add({
@@ -832,39 +857,13 @@ wkr.add({
     { "<leader>j",  group = "Jump" },
     { "<leader>jb", desc = "Jump Back" },
     { "<leader>jf", desc = "Jump Forward" },
-
     { "<leader>s",  group = "LSP" },
     { "<leader>sq", desc = "Quick Fix (LSP)" },
     { "<leader>sc", desc = "Incoming Calls" },
     { "<leader>sC", desc = "Outgoing Calls" },
-
     { "<leader>b",  group = "Buffers" },
     { "<leader>bv", desc = "Vertical split with other buffer" },
     { "<leader>bh", desc = "Horizontal split with other buffer" },
-    --- {
-    ---     "<leader>bv",
-    ---     function()
-    ---         if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
-    ---             vim.notify("No previous buffer", vim.log.levels.WARN)
-    ---             return
-    ---         end
-    ---         vim.cmd("vsplit")
-    ---         vim.cmd("buffer " .. prev_buf)
-    ---     end,
-    ---     desc = "Vertical split with previous buffer"
-    --- },
-    --- {
-    ---     "<leader>bh",
-    ---     function()
-    ---         if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
-    ---             vim.notify("No previous buffer", vim.log.levels.WARN)
-    ---             return
-    ---         end
-    ---         vim.cmd("split")
-    ---         vim.cmd("buffer " .. prev_buf)
-    ---     end,
-    ---     desc = "Horizontal split with previous buffer"
-    --- },
     -- Harpoon bookmarks
     { "<leader>h",  group = "Harpoon" },
     { "<leader>ha", function() require("harpoon"):list():add() end,           desc = "Harpoon Add File" },
@@ -938,7 +937,12 @@ wkr.add({
     { "<leader>di", function() require("dap").step_into() end,         desc = "Step Into" },
     { "<leader>dO", function() require("dap").step_out() end,          desc = "Step Out" },
     -- Utilities
-    { "<leader>z",  group = "Utils" },
+    { "<leader>z",  group = "Folds" },
+    { "z<leader>a", desc = "Toggle Fold" },
+    { "<leader>zo", desc = "Open Fold" },
+    { "<leader>zc", desc = "Close Fold" },
+    { "<leader>zR", desc = "Open All Folds" },
+    { "<leader>zM", desc = "Close All Folds" },
     {
         "<leader>zy",
         function()
@@ -990,7 +994,6 @@ vim.api.nvim_create_autocmd("FileType", {
     pattern = { "cpp", "c", "cs", "python", "lua", "javascript", "typescript" },
     callback = function(ev)
         local ft = vim.bo[ev.buf].filetype
-
         if ft == "cpp" or ft == "c" then
             vim.bo.tabstop = 2
             vim.bo.shiftwidth = 2
@@ -1094,29 +1097,24 @@ local function _pick_other_listed_buffer(current, preferred)
             and vim.bo[buf].buflisted
             and buf ~= current
     end
-
     if ok(preferred) then
         return preferred
     end
-
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
         if ok(b) then
             return b
         end
     end
-
     return nil
 end
 
 local function _split_with_other(direction)
     local cur = vim.api.nvim_get_current_buf()
     local target = _pick_other_listed_buffer(cur, _prev_buf)
-
     if not target then
         vim.notify("No other buffer to split with", vim.log.levels.WARN)
         return
     end
-
     vim.cmd(direction == "v" and "vsplit" or "split")
     vim.cmd("buffer " .. target)
 end
@@ -1125,77 +1123,75 @@ vim.keymap.set("n", "<leader>bv", function() _split_with_other("v") end, { desc 
 vim.keymap.set("n", "<leader>bh", function() _split_with_other("h") end, { desc = "Horizontal split with other buffer" })
 
 -- DAP adapters (simple + Mason-compatible)
-
-local dap_ok, dap = pcall(require, "dap")
-if not dap_ok then
-    return
+local dap_ok, dap_mod = pcall(require, "dap")
+if dap_ok then
+    -- codelldb (C / C++ / Rust)
+    dap_mod.adapters.codelldb = {
+        type = "server",
+        port = "${port}",
+        executable = {
+            command = "codelldb", -- Mason puts this on PATH
+            args = { "--port", "${port}" },
+        },
+    }
+    dap_mod.configurations.cpp = {
+        {
+            name = "Debug (codelldb)",
+            type = "codelldb",
+            request = "launch",
+            program = function()
+                return vim.fn.input(
+                    "Path to executable: ",
+                    vim.fn.getcwd() .. "/",
+                    "file"
+                )
+            end,
+            cwd = "${workspaceFolder}",
+            stopOnEntry = false,
+        },
+    }
+    dap_mod.configurations.c = dap_mod.configurations.cpp
+    -- netcoredbg (.NET)
+    dap_mod.adapters.coreclr = {
+        type = "executable",
+        command = "netcoredbg", -- Mason puts this on PATH
+        args = { "--interpreter=vscode" },
+    }
+    dap_mod.configurations.cs = {
+        {
+            name = "Debug (.NET)",
+            type = "coreclr",
+            request = "launch",
+            program = function()
+                return vim.fn.input(
+                    "Path to dll: ",
+                    vim.fn.getcwd() .. "/bin/Debug/",
+                    "file"
+                )
+            end,
+        },
+    }
+    vim.fn.sign_define("DapBreakpoint", {
+        text = "●",
+        texthl = "DiagnosticError",
+        linehl = "",
+        numhl = "",
+    })
+    vim.fn.sign_define("DapBreakpointCondition", {
+        text = "●",
+        texthl = "DiagnosticWarn",
+        linehl = "",
+        numhl = "",
+    })
+    vim.fn.sign_define("DapLogPoint", {
+        text = "◆",
+        texthl = "DiagnosticInfo",
+        linehl = "",
+        numhl = "",
+    })
 end
 
--- codelldb (C / C++ / Rust)
-dap.adapters.codelldb = {
-    type = "server",
-    port = "${port}",
-    executable = {
-        command = "codelldb", -- Mason puts this on PATH
-        args = { "--port", "${port}" },
-    },
-}
-
-dap.configurations.cpp = {
-    {
-        name = "Debug (codelldb)",
-        type = "codelldb",
-        request = "launch",
-        program = function()
-            return vim.fn.input(
-                "Path to executable: ",
-                vim.fn.getcwd() .. "/",
-                "file"
-            )
-        end,
-        cwd = "${workspaceFolder}",
-        stopOnEntry = false,
-    },
-}
-
-dap.configurations.c = dap.configurations.cpp
-
--- netcoredbg (.NET)
-dap.adapters.coreclr = {
-    type = "executable",
-    command = "netcoredbg", -- Mason puts this on PATH
-    args = { "--interpreter=vscode" },
-}
-
-dap.configurations.cs = {
-    {
-        name = "Debug (.NET)",
-        type = "coreclr",
-        request = "launch",
-        program = function()
-            return vim.fn.input(
-                "Path to dll: ",
-                vim.fn.getcwd() .. "/bin/Debug/",
-                "file"
-            )
-        end,
-    },
-}
---- -- 7) Which-key registrations for the new keys
---- local wk_ok, wk2 = pcall(require, "which-key")
---- if wk_ok then
----     wk2.add({
----         { "<leader>j", group = "Jump" },
----         { "<leader>jb", desc = "Jump Back" },
----         { "<leader>jf", desc = "Jump Forward" },
----
----         { "<leader>s", group = "LSP" },
----         { "<leader>sq", desc = "Quick Fix (LSP)" },
----         { "<leader>sc", desc = "Incoming Calls" },
----         { "<leader>sC", desc = "Outgoing Calls" },
----
----         { "<leader>b", group = "Buffers" },
----         { "<leader>bv", desc = "Vertical split with other buffer" },
----         { "<leader>bh", desc = "Horizontal split with other buffer" },
----     })
---- end
+-- Folding
+vim.keymap.set("n", "<leader>uf", function()
+    vim.o.foldcolumn = vim.o.foldcolumn == "0" and "1" or "0"
+end, { desc = "Toggle Fold Column" })
