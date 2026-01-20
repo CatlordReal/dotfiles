@@ -716,39 +716,39 @@ vim.keymap.set("n", "<leader>bp", "<cmd>bprevious<CR>", { desc = "Prev Buffer" }
 vim.keymap.set("n", "<leader>bo", "<cmd>enew<CR>", { desc = "New Buffer" })
 vim.keymap.set("n", "<leader>bc", "<cmd>bdelete<CR>", { desc = "Close Buffer" })
 
--------- START OF BUFFER SPLITTING -----------
-
--- Track previously-selected buffer safely
-local prev_buf = nil
-
--- When leaving a buffer, remember it as previous
-vim.api.nvim_create_autocmd("BufLeave", {
-    callback = function(args)
-        prev_buf = args.buf
-    end,
-})
-
--- Vertical split with previously selected buffer
-vim.keymap.set("n", "<leader>bv", function()
-    if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
-        vim.notify("No previous buffer", vim.log.levels.WARN)
-        return
-    end
-    vim.cmd("vsplit")
-    vim.cmd("buffer " .. prev_buf)
-end, { desc = "Vertical split with previous buffer" })
-
--- Horizontal split with previously selected buffer
-vim.keymap.set("n", "<leader>bh", function()
-    if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
-        vim.notify("No previous buffer", vim.log.levels.WARN)
-        return
-    end
-    vim.cmd("split")
-    vim.cmd("buffer " .. prev_buf)
-end, { desc = "Horizontal split with previous buffer" })
-
--------- END OF BUFFER SPLITTING -----------
+--- -------- START OF BUFFER SPLITTING -----------
+---
+--- -- Track previously-selected buffer safely
+--- local prev_buf = nil
+---
+--- -- When leaving a buffer, remember it as previous
+--- vim.api.nvim_create_autocmd("BufLeave", {
+---     callback = function(args)
+---         prev_buf = args.buf
+---     end,
+--- })
+---
+--- -- Vertical split with previously selected buffer
+--- vim.keymap.set("n", "<leader>bv", function()
+---     if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
+---         vim.notify("No previous buffer", vim.log.levels.WARN)
+---         return
+---     end
+---     vim.cmd("vsplit")
+---     vim.cmd("buffer " .. prev_buf)
+--- end, { desc = "Vertical split with previous buffer" })
+---
+--- -- Horizontal split with previously selected buffer
+--- vim.keymap.set("n", "<leader>bh", function()
+---     if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
+---         vim.notify("No previous buffer", vim.log.levels.WARN)
+---         return
+---     end
+---     vim.cmd("split")
+---     vim.cmd("buffer " .. prev_buf)
+--- end, { desc = "Horizontal split with previous buffer" })
+---
+--- -------- END OF BUFFER SPLITTING -----------
 
 -- Window management keymaps
 -- These mappings mirror the defaults but with a leader prefix for convenience
@@ -828,33 +828,46 @@ wkr.add({
     { "<leader>bp", "<cmd>bprevious<CR>",                                     desc = "Prev Buffer" },
     { "<leader>bo", "<cmd>enew<CR>",                                          desc = "New Buffer" },
     { "<leader>bc", "<cmd>bdelete<CR>",                                       desc = "Close Buffer" },
-    {
-        "<leader>bv",
-        function()
-            if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
-                vim.notify("No previous buffer", vim.log.levels.WARN)
-                return
-            end
-            vim.cmd("vsplit")
-            vim.cmd("buffer " .. prev_buf)
-        end,
-        desc = "Vertical split with previous buffer"
-    },
-    {
-        "<leader>bh",
-        function()
-            if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
-                vim.notify("No previous buffer", vim.log.levels.WARN)
-                return
-            end
-            vim.cmd("split")
-            vim.cmd("buffer " .. prev_buf)
-        end,
-        desc = "Horizontal split with previous buffer"
-    },
+    -- Later additions
+    { "<leader>j",  group = "Jump" },
+    { "<leader>jb", desc = "Jump Back" },
+    { "<leader>jf", desc = "Jump Forward" },
+
+    { "<leader>s",  group = "LSP" },
+    { "<leader>sq", desc = "Quick Fix (LSP)" },
+    { "<leader>sc", desc = "Incoming Calls" },
+    { "<leader>sC", desc = "Outgoing Calls" },
+
+    { "<leader>b",  group = "Buffers" },
+    { "<leader>bv", desc = "Vertical split with other buffer" },
+    { "<leader>bh", desc = "Horizontal split with other buffer" },
+    --- {
+    ---     "<leader>bv",
+    ---     function()
+    ---         if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
+    ---             vim.notify("No previous buffer", vim.log.levels.WARN)
+    ---             return
+    ---         end
+    ---         vim.cmd("vsplit")
+    ---         vim.cmd("buffer " .. prev_buf)
+    ---     end,
+    ---     desc = "Vertical split with previous buffer"
+    --- },
+    --- {
+    ---     "<leader>bh",
+    ---     function()
+    ---         if not prev_buf or prev_buf == vim.api.nvim_get_current_buf() then
+    ---             vim.notify("No previous buffer", vim.log.levels.WARN)
+    ---             return
+    ---         end
+    ---         vim.cmd("split")
+    ---         vim.cmd("buffer " .. prev_buf)
+    ---     end,
+    ---     desc = "Horizontal split with previous buffer"
+    --- },
     -- Harpoon bookmarks
     { "<leader>h",  group = "Harpoon" },
-    { "<leader>ha", function() require("harpoon"):list():add() end, desc = "Harpoon Add File" },
+    { "<leader>ha", function() require("harpoon"):list():add() end,           desc = "Harpoon Add File" },
     {
         "<leader>hm",
         function() require("harpoon").ui:toggle_quick_menu(require("harpoon"):list()) end,
@@ -1023,3 +1036,166 @@ vim.keymap.set("n", "<leader>bH", function()
     vim.cmd("split")
     vim.cmd("buffer " .. buf)
 end, { desc = "Horizontal split with chosen buffer" })
+
+vim.keymap.set("n", "<leader>fk", function()
+    require("telescope.builtin").keymaps()
+end, { desc = "Find Keymaps" })
+
+vim.keymap.set("n", "gD", vim.lsp.buf.declaration, { desc = "Go to Declaration" })
+vim.keymap.set("n", "gt", vim.lsp.buf.type_definition, { desc = "Go to Type Definition" })
+
+-----------------------------------------------------------
+-- CLion-like upgrades: clangd + quickfix + DAP + safer splits
+-----------------------------------------------------------
+
+-- 1) clangd: enable clang-tidy hints + fixes
+-- (Adds extra diagnostics + (often) extra fix-it code actions. Respects .clang-tidy.)
+vim.lsp.config["clangd"] = {
+    capabilities = cmp_caps,
+    cmd = { "clangd", "--clang-tidy" },
+}
+
+-- 2) LSP "Quick Fix" (only) + apply-first helper
+-- Shows only quickfix actions (when servers provide them).
+vim.keymap.set("n", "<leader>sq", function()
+    vim.lsp.buf.code_action({
+        context = { only = { "quickfix" } },
+    })
+end, { desc = "Quick Fix (LSP)" })
+
+-- Put current-file diagnostics into the quickfix list (handy CLion-style workflow)
+vim.keymap.set("n", "<leader>sd", function()
+    vim.diagnostic.setqflist({ open = true })
+end, { desc = "Diagnostics -> Quickfix" })
+
+-- 3) Call hierarchy (CLion-ish)
+-- You already have lspsaga installed; these are its call hierarchy commands.
+vim.keymap.set("n", "<leader>sc", "<cmd>Lspsaga incoming_calls<CR>", { desc = "Incoming Calls" })
+vim.keymap.set("n", "<leader>sC", "<cmd>Lspsaga outgoing_calls<CR>", { desc = "Outgoing Calls" })
+
+-- 4) Navigation back/forward (jump list) with leader keys (optional convenience)
+vim.keymap.set("n", "<leader>jb", "<C-o>", { desc = "Jump Back" })
+vim.keymap.set("n", "<leader>jf", "<C-i>", { desc = "Jump Forward" })
+
+-- 5) Safer buffer splitting:
+-- Use prev buffer if valid; otherwise pick another listed buffer. Works after restart.
+-- Remove your old bv/bh splitting section before using this.
+local _prev_buf = nil
+vim.api.nvim_create_autocmd("BufLeave", {
+    callback = function(args)
+        _prev_buf = args.buf
+    end,
+})
+
+local function _pick_other_listed_buffer(current, preferred)
+    local function ok(buf)
+        return buf
+            and vim.api.nvim_buf_is_valid(buf)
+            and vim.bo[buf].buflisted
+            and buf ~= current
+    end
+
+    if ok(preferred) then
+        return preferred
+    end
+
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if ok(b) then
+            return b
+        end
+    end
+
+    return nil
+end
+
+local function _split_with_other(direction)
+    local cur = vim.api.nvim_get_current_buf()
+    local target = _pick_other_listed_buffer(cur, _prev_buf)
+
+    if not target then
+        vim.notify("No other buffer to split with", vim.log.levels.WARN)
+        return
+    end
+
+    vim.cmd(direction == "v" and "vsplit" or "split")
+    vim.cmd("buffer " .. target)
+end
+
+vim.keymap.set("n", "<leader>bv", function() _split_with_other("v") end, { desc = "Vertical split with other buffer" })
+vim.keymap.set("n", "<leader>bh", function() _split_with_other("h") end, { desc = "Horizontal split with other buffer" })
+
+-- DAP adapters (simple + Mason-compatible)
+
+local dap_ok, dap = pcall(require, "dap")
+if not dap_ok then
+    return
+end
+
+-- codelldb (C / C++ / Rust)
+dap.adapters.codelldb = {
+    type = "server",
+    port = "${port}",
+    executable = {
+        command = "codelldb", -- Mason puts this on PATH
+        args = { "--port", "${port}" },
+    },
+}
+
+dap.configurations.cpp = {
+    {
+        name = "Debug (codelldb)",
+        type = "codelldb",
+        request = "launch",
+        program = function()
+            return vim.fn.input(
+                "Path to executable: ",
+                vim.fn.getcwd() .. "/",
+                "file"
+            )
+        end,
+        cwd = "${workspaceFolder}",
+        stopOnEntry = false,
+    },
+}
+
+dap.configurations.c = dap.configurations.cpp
+
+-- netcoredbg (.NET)
+dap.adapters.coreclr = {
+    type = "executable",
+    command = "netcoredbg", -- Mason puts this on PATH
+    args = { "--interpreter=vscode" },
+}
+
+dap.configurations.cs = {
+    {
+        name = "Debug (.NET)",
+        type = "coreclr",
+        request = "launch",
+        program = function()
+            return vim.fn.input(
+                "Path to dll: ",
+                vim.fn.getcwd() .. "/bin/Debug/",
+                "file"
+            )
+        end,
+    },
+}
+--- -- 7) Which-key registrations for the new keys
+--- local wk_ok, wk2 = pcall(require, "which-key")
+--- if wk_ok then
+---     wk2.add({
+---         { "<leader>j", group = "Jump" },
+---         { "<leader>jb", desc = "Jump Back" },
+---         { "<leader>jf", desc = "Jump Forward" },
+---
+---         { "<leader>s", group = "LSP" },
+---         { "<leader>sq", desc = "Quick Fix (LSP)" },
+---         { "<leader>sc", desc = "Incoming Calls" },
+---         { "<leader>sC", desc = "Outgoing Calls" },
+---
+---         { "<leader>b", group = "Buffers" },
+---         { "<leader>bv", desc = "Vertical split with other buffer" },
+---         { "<leader>bh", desc = "Horizontal split with other buffer" },
+---     })
+--- end
