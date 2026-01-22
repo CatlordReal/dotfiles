@@ -60,6 +60,10 @@ require("lazy").setup({
             }
         },
         keys = {
+            -- Snacks Jumps
+            { "<leader>j",       group = "Jump" },
+            { "<leader>js",      function() Snacks.scope.jump(1) end,                                    desc = "Next Scope" },
+            { "<leader>jS",      function() Snacks.scope.jump(-1) end,                                   desc = "Prev Scope" },
             -- Top Pickers & Explorer
             { "<leader><space>", function() Snacks.picker.smart() end,                                   desc = "Smart Find Files" },
             { "<leader>,",       function() Snacks.picker.buffers() end,                                 desc = "Buffers" },
@@ -189,7 +193,7 @@ require("lazy").setup({
                         { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2 }):map("<leader>uc")
                     Snacks.toggle.treesitter():map("<leader>uT")
                     Snacks.toggle.option("background", { off = "light", on = "dark", name = "Dark Background" }):map(
-                    "<leader>ub")
+                        "<leader>ub")
                     Snacks.toggle.inlay_hints():map("<leader>uh")
                     Snacks.toggle.indent():map("<leader>ug")
                     Snacks.toggle.dim():map("<leader>uD")
@@ -677,7 +681,7 @@ require("lazy").setup({
         end,
     },
     { "folke/neodev.nvim",      config = function() require("neodev").setup() end },
-    { "goolord/alpha-nvim",     config = function() require("alpha").setup(require("alpha.themes.startify").config) end },
+    -- { "goolord/alpha-nvim",     config = function() require("alpha").setup(require("alpha.themes.startify").config) end },
     { "folke/persistence.nvim", config = function() require("persistence").setup() end },
     {
         "theprimeagen/harpoon",
@@ -746,23 +750,23 @@ require("lazy").setup({
     },
     -- ThePrimeagen's vim-be-good
     { "ThePrimeagen/vim-be-good" },
-    {
-        "karb94/neoscroll.nvim",
-        config = function()
-            local neoscroll = require("neoscroll")
-            neoscroll.setup({
-                hide_cursor = true,
-                performance_mode = true,
-            })
-            local mappings = {
-                ["<C-y>"] = function() neoscroll.scroll(-1, { move_cursor = false, duration = 50 }) end,
-                ["<C-e>"] = function() neoscroll.scroll(1, { move_cursor = false, duration = 50 }) end,
-            }
-            for key, fn in pairs(mappings) do
-                vim.keymap.set({ "n", "v", "x" }, key, fn, { silent = true })
-            end
-        end,
-    },
+    -- {
+    --     "karb94/neoscroll.nvim",
+    --     config = function()
+    --         local neoscroll = require("neoscroll")
+    --         neoscroll.setup({
+    --             hide_cursor = true,
+    --             performance_mode = true,
+    --         })
+    --         local mappings = {
+    --             ["<C-y>"] = function() neoscroll.scroll(-1, { move_cursor = false, duration = 50 }) end,
+    --             ["<C-e>"] = function() neoscroll.scroll(1, { move_cursor = false, duration = 50 }) end,
+    --         }
+    --         for key, fn in pairs(mappings) do
+    --             vim.keymap.set({ "n", "v", "x" }, key, fn, { silent = true })
+    --         end
+    --     end,
+    -- },
     -- Database UI for vim-dadbod
     {
         "kristijanhusak/vim-dadbod-ui",
@@ -840,7 +844,7 @@ local pid = vim.fn.getpid()
 
 vim.lsp.config["lua_ls"] = {
     capabilities = cmp_caps,
-    settings = { Lua = { diagnostics = { globals = { "vim" } } } },
+    settings = { Lua = { diagnostics = { globals = { "vim", "snacks" } } } },
 }
 vim.lsp.config["clangd"] = { capabilities = cmp_caps }
 vim.lsp.config["pyright"] = { capabilities = cmp_caps }
@@ -1380,3 +1384,18 @@ end
 vim.keymap.set("n", "<leader>uf", function()
     vim.o.foldcolumn = vim.o.foldcolumn == "0" and "1" or "0"
 end, { desc = "Toggle Fold Column" })
+
+
+-- vim.api.nvim_create_autocmd("VimEnter", {
+--   callback = function()
+--     if vim.fn.argc() == 0 then
+--       Snacks.dashboard()
+--     end
+--   end,
+-- })
+--
+
+vim.g.lazyvim_starter = false
+
+vim.ui.input = Snacks.input
+vim.ui.select = Snacks.picker.select
