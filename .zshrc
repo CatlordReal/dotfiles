@@ -46,18 +46,11 @@ source ~/.fzf-tab/fzf-tab.zsh
 source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-
-fcd() {
-  local dir
-  dir=$(fzf) || return  # Pure default fzf from current dir
-  [ -d "$dir" ] && cd "$dir"
-}
-fhome() {
-  local dir
-  dir=$(cd ~ && fzf) || return  # Default fzf but from ~
-  [ -d "$dir" ] && cd "$dir"
-}
-
+# Plugins
+source ~/.zsh-autosuggestions/zsh-autosuggestions.zsh
+fpath+=(~/.zsh-completions)
 
 # Must be last
 source ~/.zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
