@@ -31,6 +31,33 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
+    -- mini files
+    {
+        "echasnovski/mini.files",
+        dependencies = { "nvim-mini/mini.icons" },
+        config = function()
+            require("mini.files").setup({
+                -- show preview of file/directory under cursor
+                windows = {
+                    width = 40,
+                    preview = true,
+                    width_preview = 80,
+                },
+                content = {
+                },
+                mappings = {
+                    -- close explorer
+                    close = "<Esc>",
+                    -- go into directory / open file
+                    go_in = "<CR>",
+                    -- go up
+                    go_out = "<BS>",
+                    -- show help
+                    show_help = "g?",
+                },
+            })
+        end,
+    },
     -- Snacks
     {
         "folke/snacks.nvim",
@@ -69,7 +96,7 @@ require("lazy").setup({
             { "<leader>,",       function() Snacks.picker.buffers() end,                                 desc = "Buffers" },
             { "<leader>/",       function() Snacks.picker.grep() end,                                    desc = "Grep" },
             { "<leader>:",       function() Snacks.picker.command_history() end,                         desc = "Command History" },
-            { "<leader>n",       function() Snacks.picker.notifications() end,                           desc = "Notification History" },
+            -- { "<leader>nn",       function() Snacks.picker.notifications() end,                           desc = "Notification History" },
             { "<leader>e",       function() Snacks.explorer() end,                                       desc = "File Explorer" },
             -- find
             { "<leader>fb",      function() Snacks.picker.buffers() end,                                 desc = "Buffers" },
@@ -133,7 +160,7 @@ require("lazy").setup({
             { "<leader>Z",       function() Snacks.zen.zoom() end,                                       desc = "Toggle Zoom" },
             { "<leader>.",       function() Snacks.scratch() end,                                        desc = "Toggle Scratch Buffer" },
             { "<leader>S",       function() Snacks.scratch.select() end,                                 desc = "Select Scratch Buffer" },
-            { "<leader>n",       function() Snacks.notifier.show_history() end,                          desc = "Notification History" },
+            { "<leader>nn",      function() Snacks.notifier.show_history() end,                          desc = "Notification History" },
             { "<leader>bd",      function() Snacks.bufdelete() end,                                      desc = "Delete Buffer" },
             { "<leader>cR",      function() Snacks.rename.rename_file() end,                             desc = "Rename File" },
             { "<leader>gB",      function() Snacks.gitbrowse() end,                                      desc = "Git Browse",                 mode = { "n", "v" } },
@@ -853,7 +880,7 @@ local pid = vim.fn.getpid()
 
 vim.lsp.config["lua_ls"] = {
     capabilities = cmp_caps,
-    settings = { Lua = { diagnostics = { globals = { "vim", "snacks" } } } },
+    settings = { Lua = { diagnostics = { globals = { "vim", "Snacks" } } } },
 }
 vim.lsp.config["clangd"] = { capabilities = cmp_caps }
 vim.lsp.config["pyright"] = { capabilities = cmp_caps }
@@ -900,6 +927,7 @@ vim.keymap.set("n", "<leader>sd", "<cmd>Trouble diagnostics toggle<cr>", { silen
 
 -- Overseer tasks & Terminal toggle
 vim.keymap.set("n", "<leader>tt", "<cmd>OverseerToggle<cr>", { silent = true, desc = "Tasks Panel" })
+
 vim.keymap.set("n", "<leader>tr", "<cmd>OverseerRun<cr>", { silent = true, desc = "Run Task" })
 vim.keymap.set("n", "<leader>tv", "<cmd>ToggleTerm<cr>", { silent = true, desc = "Terminal" })
 
@@ -997,7 +1025,7 @@ wkr.add({
     -- File explorer
     { "<leader>e",  function() require("oil").open() end,                     desc = "File Explorer (Oil)" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
-    { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
+    -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
     -- Find
     { "<leader>f",  group = "Find" },
     { "<leader>ff", function() require("telescope.builtin").find_files() end, desc = "Find Files" },
@@ -1165,8 +1193,8 @@ wkr.add({
     { "<leader>pl", "<cmd>lua require('persistence').load({ last = true })<cr>", desc = "Load Last Session" },
     { "<leader>pd", "<cmd>lua require('persistence').stop()<cr>",                desc = "Stop Persistence" },
     -- Notifications
-    { "<leader>n",  group = "Notifications" },
-    { "<leader>nn", "<cmd>Notifications<CR>",                                    desc = "Show Notifications" },
+    -- { "<leader>nn",  group = "Notifications" },
+    -- { "<leader>nn", "<cmd>Notifications<CR>",                                    desc = "Show Notifications" },
     { "<leader>no", "<cmd>noh<CR>",                                              desc = "Hide Finds" },
     -- Misc
     { "s",          group = "Flash" },
@@ -1211,7 +1239,7 @@ vim.api.nvim_create_autocmd("FileType", {
         end
     end,
 })
-vim.keymap.set("n", "<leader>nn", "<cmd>Notifications<CR>", { desc = "Show Notifications" })
+-- vim.keymap.set("n", "<leader>nn", "<cmd>Notifications<CR>", { desc = "Show Notifications" })
 vim.keymap.set("n", "<leader>no", "<cmd>noh<CR>", { desc = "Hide Finds" })
 -----------------------------------------------------------
 -- Buffer-based splitting: choose a buffer to split with
@@ -1409,3 +1437,12 @@ vim.g.lazyvim_starter = false
 
 vim.ui.input = Snacks.input
 vim.ui.select = Snacks.picker.select
+
+vim.keymap.set("n", "<leader>nt", function()
+    local mf = require("mini.files")
+    if mf.get_explorer_state() ~= nil then
+        mf.close()
+    else
+        mf.open()
+    end
+end, { desc = "Toggle mini.files" })
