@@ -66,7 +66,37 @@ require("lazy").setup({
         ---@type snacks.Config
         opts = {
             bigfile = { enabled = true },
-            dashboard = { enabled = true },
+            dashboard = {
+                enabled = true,
+                sections = {
+                    { section = "header" },
+                    {
+                        pane = 2,
+                        section = "terminal",
+                        cmd = "colorscript -e square",
+                        height = 5,
+                        padding = 1,
+                    },
+                    { section = "keys", gap = 1, padding = 1 },
+                    { pane = 2, icon = " ", title = "Recent Files", section = "recent_files", indent = 2, padding = 1 },
+                    { pane = 2, icon = " ", title = "Projects", section = "projects", indent = 2, padding = 1 },
+                    {
+                        pane = 2,
+                        icon = " ",
+                        title = "Git Status",
+                        section = "terminal",
+                        enabled = function()
+                            return Snacks.git.get_root() ~= nil
+                        end,
+                        cmd = "git status --short --branch --renames",
+                        height = 5,
+                        padding = 1,
+                        ttl = 5 * 60,
+                        indent = 3,
+                    },
+                    { section = "startup" },
+                },
+            },
             explorer = { enabled = true },
             indent = { enabled = true },
             input = { enabled = true },
@@ -74,7 +104,14 @@ require("lazy").setup({
                 enabled = true,
                 timeout = 3000,
             },
-            picker = { enabled = true },
+            picker = {
+                enabled = true,
+                sources = {
+                    projects = {
+                        dev = { "~/dev/projects" },
+                    },
+                },
+            },
             quickfile = { enabled = true },
             scope = { enabled = true },
             scroll = { enabled = true },
@@ -981,7 +1018,56 @@ vim.keymap.set("n", "<leader>fa", function() vim.lsp.buf.format({ async = true }
     { silent = true, desc = "Format Buffer" })
 
 -- Database keymaps
+local function dbui_open_sqlite(opts)
+    local file = opts and opts.file or vim.fn.expand("%:p")
+    if file == "" then
+        vim.notify("No file to open", vim.log.levels.WARN)
+        return
+    end
+    if not (file:match("%.sqlite$") or file:match("%.db$") or file:match("%.sqlite3$") or file:match("%.db3$")) then
+        vim.notify("Not a SQLite file", vim.log.levels.WARN)
+        return
+    end
+    local label = "sqlite:" .. vim.fn.fnamemodify(file, ":~")
+    vim.g.dbs = vim.g.dbs or {}
+    if vim.g.dbs[label] == nil then
+        vim.g.dbs[label] = "sqlite:" .. file
+    end
+    if opts and opts.fullscreen then
+        vim.cmd("tabnew")
+    end
+    vim.cmd("DBUI")
+    if opts and opts.wipe_buf and opts.buf and vim.api.nvim_buf_is_valid(opts.buf) then
+        vim.api.nvim_buf_delete(opts.buf, { force = true })
+    end
+end
+
+local function reveal_in_finder()
+    local path = vim.fn.expand("%:p")
+    if path == "" then
+        vim.notify("No file to reveal", vim.log.levels.WARN)
+        return
+    end
+    if vim.fn.isdirectory(path) == 1 then
+        vim.fn.jobstart({ "open", path }, { detach = true })
+        return
+    end
+    if vim.fn.filereadable(path) == 0 then
+        local dir = vim.fn.expand("%:p:h")
+        if dir ~= "" then
+            vim.fn.jobstart({ "open", dir }, { detach = true })
+        else
+            vim.notify("No file to reveal", vim.log.levels.WARN)
+        end
+        return
+    end
+    vim.fn.jobstart({ "open", "-R", path }, { detach = true })
+end
+
 vim.keymap.set("n", "<leader>qo", "<cmd>DBUI<CR>", { desc = "Open DBUI" })
+vim.keymap.set("n", "<leader>qO", function()
+    dbui_open_sqlite({ fullscreen = true, wipe_buf = true, buf = vim.api.nvim_get_current_buf() })
+end, { desc = "Open DBUI (Fullscreen)" })
 vim.keymap.set("n", "<leader>qc", "<cmd>DBUIClose<CR>", { desc = "Close DBUI" })
 vim.keymap.set("n", "<leader>qr", "<cmd>DBUIRename<CR>", { desc = "Rename Connection" })
 vim.keymap.set("n", "<leader>qs", "<cmd>DBUISaveQuery<CR>", { desc = "Save Query" })
@@ -993,6 +1079,10 @@ vim.keymap.set("n", "<leader>qf", function()
         vim.notify("Not a SQLite file", vim.log.levels.WARN)
     end
 end, { desc = "Open SQLite File" })
+vim.keymap.set("n", "<leader>rq", "<cmd>DB<CR>", { desc = "Run SQL Query" })
+vim.keymap.set("v", "<leader>rq", ":'<,'>DB<CR>", { desc = "Run SQL Query" })
+
+vim.keymap.set("n", "<leader>of", reveal_in_finder, { desc = "Reveal in Finder" })
 
 -- Buffer navigation keymaps
 vim.keymap.set("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next Buffer" })
@@ -1026,6 +1116,9 @@ wkr.add({
     { "<leader>e",  function() require("oil").open() end,                     desc = "File Explorer (Oil)" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
     -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
+    -- Open
+    { "<leader>o",  group = "Open" },
+    { "<leader>of", reveal_in_finder,                                          desc = "Reveal in Finder" },
     -- Find
     { "<leader>f",  group = "Find" },
     { "<leader>ff", function() require("telescope.builtin").find_files() end, desc = "Find Files" },
@@ -1114,6 +1207,7 @@ wkr.add({
     { "<leader>rf", ":RunFile<CR>",                                     desc = "Run File" },
     { "<leader>rp", ":RunProject<CR>",                                  desc = "Run Project" },
     { "<leader>rc", ":RunClose<CR>",                                    desc = "Close Runner" },
+    { "<leader>rq", "<cmd>DB<CR>",                                      desc = "Run SQL Query" },
     { "<leader>rd", "<cmd>Dotnet run<CR>",                              desc = "Dotnet Run Project" },
     -- Refactoring helpers
     {
@@ -1135,6 +1229,11 @@ wkr.add({
     -- Database
     { "<leader>q",  group = "Database" },
     { "<leader>qo", "<cmd>DBUI<CR>",                                               desc = "Open DBUI" },
+    {
+        "<leader>qO",
+        function() dbui_open_sqlite({ fullscreen = true, wipe_buf = true, buf = vim.api.nvim_get_current_buf() }) end,
+        desc = "Open DBUI (Fullscreen)"
+    },
     { "<leader>qc", "<cmd>DBUIClose<CR>",                                          desc = "Close DBUI" },
     { "<leader>qr", "<cmd>DBUIRename<CR>",                                         desc = "Rename Connection" },
     { "<leader>qs", "<cmd>DBUISaveQuery<CR>",                                      desc = "Save Query" },
@@ -1215,6 +1314,14 @@ vim.keymap.set("n", "<leader>sl", "<cmd>Lspsaga show_line_diagnostics<CR>", { de
 vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga finder<CR>", { desc = "LSP Finder" })
 -- Dotnet running
 vim.keymap.set("n", "<leader>rd", "<cmd>Dotnet run<CR>", { desc = "Dotnet Run Project" })
+
+-- Auto-open SQLite files in DBUI and close the raw buffer
+vim.api.nvim_create_autocmd("BufReadPost", {
+    pattern = { "*.sqlite", "*.db", "*.sqlite3", "*.db3" },
+    callback = function(args)
+        dbui_open_sqlite({ fullscreen = true, wipe_buf = true, buf = args.buf, file = args.file })
+    end,
+})
 
 -- Per-language tab/space behaviour
 vim.api.nvim_create_autocmd("FileType", {
