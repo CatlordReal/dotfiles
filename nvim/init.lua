@@ -663,7 +663,7 @@ require("lazy").setup({
         dependencies = { "neovim/nvim-lspconfig" },
         config = function()
             require("mason-lspconfig").setup({
-                ensure_installed = { "lua_ls", "clangd", "omnisharp", "pyright", "sourcekit" },
+                ensure_installed = { "lua_ls", "clangd", "omnisharp", "pyright" },
             })
         end,
     },
@@ -1139,6 +1139,7 @@ vim.lsp.config["omnisharp"] = {
 }
 vim.lsp.config["sourcekit"] = {
     capabilities = cmp_caps,
+    cmd = { "xcrun", "sourcekit-lsp" },
     root_dir = lsp_util.root_pattern("Package.swift", ".git", "*.xcodeproj", "*.xcworkspace"),
 }
 
