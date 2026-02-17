@@ -1,0 +1,3 @@
+[templates]
+neopywal.template = "templates/colors_neopywal.vim"
+neopywal.target = "~/.cache/wallust/colors_neopywal.vim"
