@@ -515,6 +515,8 @@ require("lazy").setup({
                 "c",
                 "cpp",
                 "c_sharp",
+                "swift",
+                "objc",
                 "json",
                 "markdown",
                 "bash",
@@ -660,7 +662,9 @@ require("lazy").setup({
         "williamboman/mason-lspconfig.nvim",
         dependencies = { "neovim/nvim-lspconfig" },
         config = function()
-            require("mason-lspconfig").setup({ ensure_installed = { "lua_ls", "clangd", "omnisharp", "pyright" } })
+            require("mason-lspconfig").setup({
+                ensure_installed = { "lua_ls", "clangd", "omnisharp", "pyright", "sourcekit" },
+            })
         end,
     },
     {
@@ -881,6 +885,14 @@ require("lazy").setup({
                     javascript = "node",
                     typescript = "ts-node",
                     java = { "cd $dir &&", "javac $fileName &&", "java $fileNameWithoutExt" },
+                    swift = function()
+                        local package_swift = vim.fn.findfile("Package.swift", ".;")
+                        if package_swift ~= "" then
+                            local root = vim.fn.fnamemodify(package_swift, ":h")
+                            return "cd " .. vim.fn.shellescape(root) .. " && swift run"
+                        end
+                        return "swift " .. vim.fn.shellescape(vim.fn.expand("%:p"))
+                    end,
                     rust = function()
                         -- Use cargo run if Cargo.toml exists, otherwise compile manually
                         local cargo_toml = vim.fn.findfile("Cargo.toml", ".;")
@@ -905,28 +917,312 @@ require("lazy").setup({
 local cmp_caps = require("cmp_nvim_lsp").default_capabilities()
 
 vim.diagnostic.config({
-    virtual_text = true,
+    virtual_text = {
+        severity = { min = vim.diagnostic.severity.WARN },
+        source = "if_many",
+        spacing = 2,
+    },
     signs = true,
-    underline = true,
+    underline = { severity = { min = vim.diagnostic.severity.WARN } },
+    severity_sort = true,
+    update_in_insert = false,
     float = {
         border = "rounded",
+        source = "if_many",
     },
 })
 
 local pid = vim.fn.getpid()
+local lsp_util = require("lspconfig.util")
+
+local ignored_diag_items = {}
+
+local function diag_type_from_severity(severity)
+    if severity == vim.diagnostic.severity.ERROR then
+        return "E"
+    end
+    if severity == vim.diagnostic.severity.WARN then
+        return "W"
+    end
+    if severity == vim.diagnostic.severity.INFO then
+        return "I"
+    end
+    return "N"
+end
+
+local function diag_key(item)
+    return table.concat({
+        tostring(item.bufnr or 0),
+        tostring(item.lnum or 0),
+        tostring(item.col or 0),
+        tostring(item.end_lnum or 0),
+        tostring(item.end_col or 0),
+        tostring(item.type or ""),
+        tostring(item.text or ""),
+    }, "|")
+end
+
+local function diagnostics_to_qf_items(bufnr)
+    local items = {}
+    local diagnostics = vim.diagnostic.get(bufnr)
+    for _, d in ipairs(diagnostics) do
+        local item = {
+            bufnr = bufnr,
+            lnum = (d.lnum or 0) + 1,
+            col = (d.col or 0) + 1,
+            end_lnum = d.end_lnum and (d.end_lnum + 1) or nil,
+            end_col = d.end_col and (d.end_col + 1) or nil,
+            text = d.message,
+            type = diag_type_from_severity(d.severity),
+        }
+        local key = diag_key(item)
+        item.user_data = { diag_key = key }
+        if not ignored_diag_items[key] then
+            table.insert(items, item)
+        end
+    end
+
+    table.sort(items, function(a, b)
+        if a.bufnr ~= b.bufnr then
+            return a.bufnr < b.bufnr
+        end
+        if a.lnum ~= b.lnum then
+            return a.lnum < b.lnum
+        end
+        return (a.col or 0) < (b.col or 0)
+    end)
+    return items
+end
+
+local function open_buffer_diagnostics_qf()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local items = diagnostics_to_qf_items(bufnr)
+    vim.fn.setqflist({}, " ", {
+        title = "Diagnostics (buffer)",
+        items = items,
+        context = { kind = "buffer_diagnostics", bufnr = bufnr },
+    })
+    vim.cmd("copen")
+    if #items == 0 then
+        vim.notify("No active diagnostics in current buffer", vim.log.levels.INFO)
+    end
+end
+
+local function open_ignored_diagnostics_qf()
+    local items = {}
+    for _, item in pairs(ignored_diag_items) do
+        table.insert(items, item)
+    end
+    table.sort(items, function(a, b)
+        if a.bufnr ~= b.bufnr then
+            return a.bufnr < b.bufnr
+        end
+        if a.lnum ~= b.lnum then
+            return a.lnum < b.lnum
+        end
+        return (a.col or 0) < (b.col or 0)
+    end)
+
+    vim.fn.setqflist({}, " ", {
+        title = "Diagnostics (ignored)",
+        items = items,
+        context = { kind = "ignored_diagnostics" },
+    })
+    vim.cmd("copen")
+    if #items == 0 then
+        vim.notify("No ignored diagnostics", vim.log.levels.INFO)
+    end
+end
+
+local function qf_selected_range(from_visual)
+    if from_visual then
+        local s = vim.fn.line("'<")
+        local e = vim.fn.line("'>")
+        if s > e then
+            s, e = e, s
+        end
+        return s, e
+    end
+    local row = vim.api.nvim_win_get_cursor(0)[1]
+    return row, row
+end
+
+local function qf_ignore_selected(from_visual)
+    local qf = vim.fn.getqflist({ items = 1, context = 1, title = 1 })
+    if not (qf.context and qf.context.kind == "buffer_diagnostics") then
+        vim.notify("Open <leader>sd diagnostics list first", vim.log.levels.WARN)
+        return
+    end
+
+    local start_row, end_row = qf_selected_range(from_visual)
+    local kept, removed = {}, 0
+    for i, item in ipairs(qf.items) do
+        if i >= start_row and i <= end_row then
+            local key = (item.user_data and item.user_data.diag_key) or diag_key(item)
+            item.user_data = { diag_key = key }
+            ignored_diag_items[key] = item
+            removed = removed + 1
+        else
+            table.insert(kept, item)
+        end
+    end
+
+    vim.fn.setqflist({}, "r", {
+        title = qf.title,
+        items = kept,
+        context = qf.context,
+    })
+    vim.cmd("copen")
+    vim.notify("Ignored " .. removed .. " diagnostic(s)", vim.log.levels.INFO)
+end
+
+local function qf_unignore_selected(from_visual)
+    local qf = vim.fn.getqflist({ items = 1, context = 1, title = 1 })
+    if not (qf.context and qf.context.kind == "ignored_diagnostics") then
+        vim.notify("Open ignored diagnostics list first", vim.log.levels.WARN)
+        return
+    end
+
+    local start_row, end_row = qf_selected_range(from_visual)
+    local kept, restored = {}, 0
+    for i, item in ipairs(qf.items) do
+        local key = (item.user_data and item.user_data.diag_key) or diag_key(item)
+        if i >= start_row and i <= end_row then
+            ignored_diag_items[key] = nil
+            restored = restored + 1
+        else
+            table.insert(kept, item)
+        end
+    end
+
+    vim.fn.setqflist({}, "r", {
+        title = qf.title,
+        items = kept,
+        context = qf.context,
+    })
+    vim.cmd("copen")
+    vim.notify("Restored " .. restored .. " diagnostic(s)", vim.log.levels.INFO)
+end
+
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = "qf",
+    callback = function(args)
+        local opts = { buffer = args.buf, silent = true }
+        vim.keymap.set("n", "d", function() qf_ignore_selected(false) end, opts)
+        vim.keymap.set("x", "d", function() qf_ignore_selected(true) end, opts)
+        vim.keymap.set("n", "u", function() qf_unignore_selected(false) end, opts)
+        vim.keymap.set("x", "u", function() qf_unignore_selected(true) end, opts)
+    end,
+})
 
 vim.lsp.config["lua_ls"] = {
     capabilities = cmp_caps,
     settings = { Lua = { diagnostics = { globals = { "vim", "Snacks" } } } },
 }
 vim.lsp.config["clangd"] = { capabilities = cmp_caps }
-vim.lsp.config["pyright"] = { capabilities = cmp_caps }
+vim.lsp.config["pyright"] = {
+    capabilities = cmp_caps,
+    settings = {
+        python = {
+            analysis = {
+                typeCheckingMode = "basic",
+                diagnosticMode = "openFilesOnly",
+                autoSearchPaths = true,
+                useLibraryCodeForTypes = true,
+            },
+        },
+    },
+}
 vim.lsp.config["omnisharp"] = {
     capabilities = cmp_caps,
     cmd = { "omnisharp", "--languageserver", "--hostPID", tostring(pid) },
 }
+vim.lsp.config["sourcekit"] = {
+    capabilities = cmp_caps,
+    root_dir = lsp_util.root_pattern("Package.swift", ".git", "*.xcodeproj", "*.xcworkspace"),
+}
 
-vim.lsp.enable({ "lua_ls", "clangd", "omnisharp", "pyright" })
+vim.lsp.enable({ "lua_ls", "clangd", "omnisharp", "pyright", "sourcekit" })
+
+local function find_xcode_container()
+    local cwd = vim.fn.getcwd()
+    local workspace = vim.fs.find(function(name)
+        return name:match("%.xcworkspace$")
+    end, { path = cwd, upward = true })[1]
+    if workspace then
+        return "workspace", workspace
+    end
+    local project = vim.fs.find(function(name)
+        return name:match("%.xcodeproj$")
+    end, { path = cwd, upward = true })[1]
+    if project then
+        return "project", project
+    end
+    return nil, nil
+end
+
+local function open_terminal_cmd(cmd)
+    vim.cmd("botright 12split")
+    vim.cmd("terminal " .. cmd)
+end
+
+local function run_xcodebuild(action, destination)
+    local container_kind, container_path = find_xcode_container()
+    local scheme = vim.fn.input("Xcode scheme: ")
+    if scheme == "" then
+        vim.notify("Xcode scheme is required", vim.log.levels.WARN)
+        return
+    end
+
+    local cmd_parts = { "xcodebuild" }
+    if container_kind == "workspace" then
+        table.insert(cmd_parts, "-workspace")
+        table.insert(cmd_parts, vim.fn.shellescape(container_path))
+    elseif container_kind == "project" then
+        table.insert(cmd_parts, "-project")
+        table.insert(cmd_parts, vim.fn.shellescape(container_path))
+    end
+    table.insert(cmd_parts, "-scheme")
+    table.insert(cmd_parts, vim.fn.shellescape(scheme))
+    table.insert(cmd_parts, action)
+    if destination and destination ~= "" then
+        table.insert(cmd_parts, "-destination")
+        table.insert(cmd_parts, vim.fn.shellescape(destination))
+    end
+
+    open_terminal_cmd(table.concat(cmd_parts, " "))
+end
+
+local function xcode_build_ios()
+    run_xcodebuild("build", "platform=iOS Simulator,name=iPhone 16")
+end
+
+local function xcode_test_ios()
+    run_xcodebuild("test", "platform=iOS Simulator,name=iPhone 16")
+end
+
+local function xcode_build_ipad()
+    run_xcodebuild("build", "platform=iOS Simulator,name=iPad Pro (13-inch) (M4)")
+end
+
+local function xcode_test_ipad()
+    run_xcodebuild("test", "platform=iOS Simulator,name=iPad Pro (13-inch) (M4)")
+end
+
+local function xcode_build_macos()
+    run_xcodebuild("build", "platform=macOS")
+end
+
+local function xcode_test_macos()
+    run_xcodebuild("test", "platform=macOS")
+end
+
+vim.api.nvim_create_user_command("XcodeBuildIOS", xcode_build_ios, {})
+vim.api.nvim_create_user_command("XcodeTestIOS", xcode_test_ios, {})
+vim.api.nvim_create_user_command("XcodeBuildIPad", xcode_build_ipad, {})
+vim.api.nvim_create_user_command("XcodeTestIPad", xcode_test_ipad, {})
+vim.api.nvim_create_user_command("XcodeBuildMac", xcode_build_macos, {})
+vim.api.nvim_create_user_command("XcodeTestMac", xcode_test_macos, {})
 
 vim.api.nvim_create_autocmd("BufWritePre", {
     pattern = "*.py",
@@ -960,13 +1256,20 @@ vim.keymap.set("n", "gi", vim.lsp.buf.implementation, { silent = true, desc = "G
 -- Use lspsaga for hover documentation. The built-in hover mapping is removed to avoid conflicts
 -- vim.keymap.set("n", "K", vim.lsp.buf.hover, { silent = true, desc = "Hover Info" })
 vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, { silent = true, desc = "Rename Symbol" })
-vim.keymap.set("n", "<leader>sd", "<cmd>Trouble diagnostics toggle<cr>", { silent = true, desc = "Diagnostics List" })
+vim.keymap.set("n", "<leader>sd", open_buffer_diagnostics_qf, { silent = true, desc = "Diagnostics List" })
+vim.keymap.set("n", "<leader>sI", open_ignored_diagnostics_qf, { silent = true, desc = "Ignored Diagnostics" })
 
 -- Overseer tasks & Terminal toggle
 vim.keymap.set("n", "<leader>tt", "<cmd>OverseerToggle<cr>", { silent = true, desc = "Tasks Panel" })
 
 vim.keymap.set("n", "<leader>tr", "<cmd>OverseerRun<cr>", { silent = true, desc = "Run Task" })
 vim.keymap.set("n", "<leader>tv", "<cmd>ToggleTerm<cr>", { silent = true, desc = "Terminal" })
+vim.keymap.set("n", "<leader>xi", xcode_build_ios, { silent = true, desc = "Xcode Build iOS" })
+vim.keymap.set("n", "<leader>xI", xcode_test_ios, { silent = true, desc = "Xcode Test iOS" })
+vim.keymap.set("n", "<leader>xp", xcode_build_ipad, { silent = true, desc = "Xcode Build iPadOS" })
+vim.keymap.set("n", "<leader>xP", xcode_test_ipad, { silent = true, desc = "Xcode Test iPadOS" })
+vim.keymap.set("n", "<leader>xm", xcode_build_macos, { silent = true, desc = "Xcode Build macOS" })
+vim.keymap.set("n", "<leader>xM", xcode_test_macos, { silent = true, desc = "Xcode Test macOS" })
 
 -- Debugging (DAP)
 local dap = require("dap")
@@ -1135,7 +1438,8 @@ wkr.add({
     { "<leader>sK", vim.lsp.buf.hover,                                        desc = "Hover Info" },
     { "<leader>sr", vim.lsp.buf.rename,                                       desc = "Rename Symbol" },
     { "<leader>sa", function() require("actions-preview").code_actions() end, desc = "Code Action" },
-    { "<leader>sd", "<cmd>Trouble diagnostics toggle<cr>",                    desc = "Diagnostics List" },
+    { "<leader>sd", open_buffer_diagnostics_qf,                               desc = "Diagnostics List" },
+    { "<leader>sI", open_ignored_diagnostics_qf,                              desc = "Ignored Diagnostics" },
     -- Provide a separate key for line diagnostics using lspsaga
     { "<leader>sl", "<cmd>Lspsaga show_line_diagnostics<CR>",                 desc = "Line Diagnostics" },
     { "<leader>ca", "<cmd>Lspsaga code_action<CR>",                           desc = "Code Action (Saga)" },
@@ -1201,6 +1505,12 @@ wkr.add({
     { "<leader>xt", "<cmd>OverseerToggle<CR>",                          desc = "Tasks Panel" },
     { "<leader>xr", "<cmd>OverseerRun<CR>",                             desc = "Run Task" },
     { "<leader>xv", "<cmd>ToggleTerm<CR>",                              desc = "Terminal" },
+    { "<leader>xi", xcode_build_ios,                                    desc = "Xcode Build iOS" },
+    { "<leader>xI", xcode_test_ios,                                     desc = "Xcode Test iOS" },
+    { "<leader>xp", xcode_build_ipad,                                   desc = "Xcode Build iPadOS" },
+    { "<leader>xP", xcode_test_ipad,                                    desc = "Xcode Test iPadOS" },
+    { "<leader>xm", xcode_build_macos,                                  desc = "Xcode Build macOS" },
+    { "<leader>xM", xcode_test_macos,                                   desc = "Xcode Test macOS" },
     -- Run group (code runner)
     { "<leader>r",  group = "Run" },
     { "<leader>rr", ":RunCode<CR>",                                     desc = "Run Code" },
@@ -1325,7 +1635,7 @@ vim.api.nvim_create_autocmd("BufReadPost", {
 
 -- Per-language tab/space behaviour
 vim.api.nvim_create_autocmd("FileType", {
-    pattern = { "cpp", "c", "cs", "python", "lua", "javascript", "typescript" },
+    pattern = { "cpp", "c", "cs", "python", "lua", "javascript", "typescript", "swift" },
     callback = function(ev)
         local ft = vim.bo[ev.buf].filetype
         if ft == "cpp" or ft == "c" then
@@ -1339,6 +1649,11 @@ vim.api.nvim_create_autocmd("FileType", {
             vim.bo.softtabstop = 4
             vim.bo.expandtab = true
         elseif ft == "python" then
+            vim.bo.tabstop = 4
+            vim.bo.shiftwidth = 4
+            vim.bo.softtabstop = 4
+            vim.bo.expandtab = true
+        elseif ft == "swift" then
             vim.bo.tabstop = 4
             vim.bo.shiftwidth = 4
             vim.bo.softtabstop = 4
@@ -1385,12 +1700,8 @@ vim.keymap.set("n", "gt", vim.lsp.buf.type_definition, { desc = "Go to Type Defi
 -- CLion-like upgrades: clangd + quickfix + DAP + safer splits
 -----------------------------------------------------------
 
--- 1) clangd: enable clang-tidy hints + fixes
--- (Adds extra diagnostics + (often) extra fix-it code actions. Respects .clang-tidy.)
-vim.lsp.config["clangd"] = {
-    capabilities = cmp_caps,
-    cmd = { "clangd", "--clang-tidy" },
-}
+-- 1) clangd: keep defaults for a normal (less noisy) diagnostics profile
+vim.lsp.config["clangd"] = { capabilities = cmp_caps }
 
 -- 2) LSP "Quick Fix" (only) + apply-first helper
 -- Shows only quickfix actions (when servers provide them).
@@ -1402,8 +1713,8 @@ end, { desc = "Quick Fix (LSP)" })
 
 -- Put current-file diagnostics into the quickfix list (handy CLion-style workflow)
 vim.keymap.set("n", "<leader>sd", function()
-    vim.diagnostic.setqflist({ open = true })
-end, { desc = "Diagnostics -> Quickfix" })
+    open_buffer_diagnostics_qf()
+end, { desc = "Diagnostics List" })
 
 -- 3) Call hierarchy (CLion-ish)
 -- You already have lspsaga installed; these are its call hierarchy commands.
