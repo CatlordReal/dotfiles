@@ -13,8 +13,9 @@ vim.opt.softtabstop = 4
 -- Faster update time for diagnostics
 vim.opt.updatetime = 200 -- NTS: Extra addition
 vim.opt.winblend = 0
-vim.opt.pumblend = 10
+vim.opt.pumblend = 0
 vim.opt.cursorlineopt = "number"
+vim.o.winborder = "rounded"
 
 -- lazy.nvim bootstrap
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
@@ -285,6 +286,16 @@ require("lazy").setup({
             "nvim-lua/plenary.nvim",
             "nvim-tree/nvim-web-devicons",
         },
+        config = function()
+            require("neo-tree").setup({
+                popup_border_style = "rounded",
+                window = {
+                    popup = {
+                        border = "rounded",
+                    },
+                },
+            })
+        end,
     },
     -- {
     --     "nvim-tree/nvim-tree.lua",
@@ -389,53 +400,100 @@ require("lazy").setup({
         "nvim-lualine/lualine.nvim",
         dependencies = { "nvim-tree/nvim-web-devicons" },
         config = function()
+            local palette = require("catppuccin.palettes").get_palette("mocha")
             local theme = require("catppuccin.utils.lualine")("mocha")
-
-            local function lsp_label()
-                local clients = vim.lsp.get_clients({ bufnr = 0 })
-                return (#clients > 0) and "Lsp" or ""
-            end
+            local rounded_capsule = { left = "", right = "" }
 
             local function cwd_tail()
                 return vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
             end
+
+            local function filename_color()
+                return { fg = palette.base, bg = palette.blue, gui = "bold" }
+            end
+
+            theme.normal.a = { fg = palette.base, bg = palette.sapphire, gui = "bold" }
+            theme.normal.b = { fg = palette.text, bg = palette.surface0 }
+            theme.normal.c = { fg = palette.subtext1, bg = palette.mantle }
 
             require("lualine").setup({
                 options = {
                     theme = theme,
                     icons_enabled = true,
                     component_separators = "",
-                    section_separators = { left = "", right = "" },
+                    section_separators = "",
                     globalstatus = true,
                     disabled_filetypes = { statusline = { "NvimTree" } },
                 },
                 sections = {
                     lualine_a = {
-                        { "mode", icon = "", separator = { left = "", right = "" }, right_padding = 1 },
-                        { "progress" },
-                        { "location" },
+                        {
+                            "mode",
+                            icon = "",
+                            separator = rounded_capsule,
+                            padding = { left = 1, right = 1 },
+                        },
                     },
-                    lualine_b = {},
+                    lualine_b = {
+                        {
+                            "branch",
+                            icon = "",
+                            separator = rounded_capsule,
+                            color = { fg = palette.base, bg = palette.sky, gui = "bold" },
+                            cond = function()
+                                return vim.b.gitsigns_head ~= nil and vim.b.gitsigns_head ~= ""
+                            end,
+                        },
+                    },
                     lualine_c = {
                         {
                             "diagnostics",
                             sources = { "nvim_diagnostic" },
                             symbols = { error = " ", warn = " ", info = " ", hint = " " },
+                            separator = rounded_capsule,
+                            color = { fg = palette.base, bg = palette.lavender, gui = "bold" },
                         },
                     },
                     lualine_x = {
-                        { lsp_label, icon = "" },
-                        { "filename", path = 0 },
+                        {
+                            "filename",
+                            path = 0,
+                            separator = rounded_capsule,
+                            color = filename_color,
+                        },
                     },
-                    lualine_y = {},
+                    lualine_y = {
+                        {
+                            "progress",
+                            separator = rounded_capsule,
+                            color = { fg = palette.base, bg = palette.teal, gui = "bold" },
+                        },
+                        {
+                            "location",
+                            separator = rounded_capsule,
+                            color = { fg = palette.base, bg = palette.green, gui = "bold" },
+                        },
+                    },
                     lualine_z = {
-                        { cwd_tail, icon = "", separator = { left = "", right = "" }, left_padding = 1 },
+                        {
+                            cwd_tail,
+                            icon = "",
+                            separator = rounded_capsule,
+                            color = { fg = palette.base, bg = palette.mauve, gui = "bold" },
+                            padding = { left = 1, right = 1 },
+                        },
                     },
                 },
                 inactive_sections = {
                     lualine_a = {},
                     lualine_b = {},
-                    lualine_c = { { "filename", path = 0 } },
+                    lualine_c = {
+                        {
+                            "filename",
+                            path = 0,
+                            separator = rounded_capsule,
+                        },
+                    },
                     lualine_x = {},
                     lualine_y = {},
                     lualine_z = {},
@@ -453,6 +511,34 @@ require("lazy").setup({
             require("catppuccin").setup({
                 flavour = "mocha",
                 transparent_background = false,
+                custom_highlights = function(c)
+                    return {
+                        NormalFloat = { fg = c.text, bg = c.base },
+                        FloatBorder = { fg = c.sapphire, bg = c.base },
+                        FloatTitle = { fg = c.base, bg = c.lavender, bold = true },
+                        Pmenu = { fg = c.text, bg = c.base },
+                        PmenuSel = { fg = c.sapphire, bg = c.surface1, bold = true },
+                        PmenuBorder = { fg = c.sky, bg = c.base },
+
+                        TelescopePromptBorder = { fg = c.sapphire, bg = c.base },
+                        TelescopePromptNormal = { bg = c.base },
+                        TelescopePromptTitle = { fg = c.base, bg = c.sapphire, bold = true },
+                        TelescopeResultsBorder = { fg = c.lavender, bg = c.base },
+                        TelescopeResultsNormal = { bg = c.base },
+                        TelescopeResultsTitle = { fg = c.base, bg = c.lavender, bold = true },
+                        TelescopePreviewBorder = { fg = c.mauve, bg = c.base },
+                        TelescopePreviewNormal = { bg = c.base },
+                        TelescopePreviewTitle = { fg = c.base, bg = c.mauve, bold = true },
+
+                        WhichKeyBorder = { fg = c.blue, bg = c.base },
+                        NoiceCmdlinePopup = { fg = c.text, bg = c.base },
+                        NoiceCmdlinePopupBorder = { fg = c.sapphire, bg = c.base },
+                        NoicePopup = { fg = c.text, bg = c.base },
+                        NoicePopupBorder = { fg = c.lavender, bg = c.base },
+                        NoicePopupmenu = { fg = c.text, bg = c.base },
+                        NoicePopupmenuBorder = { fg = c.mauve, bg = c.base },
+                    }
+                end,
                 integrations = {
                     treesitter = true,
                     nvimtree = true,
@@ -566,10 +652,15 @@ require("lazy").setup({
             local action_state = require("telescope.actions.state")
             local open_in_tab = function(prompt_bufnr)
                 local entry = action_state.get_selected_entry()
+                if not entry then
+                    actions.close(prompt_bufnr)
+                    vim.notify("No selected entry", vim.log.levels.WARN)
+                    return
+                end
                 actions.close(prompt_bufnr)
                 local path = entry.path or entry.filename or (type(entry.value) == "string" and entry.value)
                 if path then
-                    vim.cmd("tabnew " .. path)
+                    vim.cmd("tabnew " .. vim.fn.fnameescape(path))
                 else
                     vim.notify("No file path for this entry", vim.log.levels.WARN)
                 end
@@ -634,7 +725,7 @@ require("lazy").setup({
                     title_pos = "center",
                     row = math.huge,
                     col = math.huge,
-                    wo = { winblend = 10 },
+                    wo = { winblend = 0 },
                 },
                 layout = {
                     width = { min = 20, max = 100 },
@@ -681,10 +772,17 @@ require("lazy").setup({
         config = function()
             local cmp = require("cmp")
             require("luasnip.loaders.from_vscode").lazy_load()
+            local cmp_window_hl = "Normal:NormalFloat,FloatBorder:FloatBorder,CursorLine:PmenuSel,Search:None"
             cmp.setup({
                 window = {
-                    completion = cmp.config.window.bordered(),
-                    documentation = cmp.config.window.bordered(),
+                    completion = cmp.config.window.bordered({
+                        border = "rounded",
+                        winhighlight = cmp_window_hl,
+                    }),
+                    documentation = cmp.config.window.bordered({
+                        border = "rounded",
+                        winhighlight = cmp_window_hl,
+                    }),
                 },
                 snippet = {
                     expand = function(args)
@@ -724,7 +822,13 @@ require("lazy").setup({
         "akinsho/toggleterm.nvim",
         version = "*",
         config = function()
-            require("toggleterm").setup({ direction = "float" })
+            require("toggleterm").setup({
+                direction = "float",
+                float_opts = {
+                    border = "curved",
+                    winblend = 0,
+                },
+            })
         end,
     },
     { "mfussenegger/nvim-dap" },
@@ -752,8 +856,39 @@ require("lazy").setup({
         "folke/noice.nvim",
         dependencies = { "MunifTanjim/nui.nvim", "rcarriga/nvim-notify" },
         config = function()
-            require("notify").setup({})
-            require("noice").setup({ lsp = { progress = { enabled = true } } })
+            require("notify").setup({
+                stages = "fade_in_slide_out",
+                render = "compact",
+                timeout = 2200,
+                fps = 60,
+                top_down = false,
+            })
+            require("noice").setup({
+                lsp = { progress = { enabled = true } },
+                views = {
+                    popup = {
+                        border = { style = "rounded" },
+                        win_options = {
+                            winblend = 0,
+                            winhighlight = "Normal:NoicePopup,FloatBorder:NoicePopupBorder",
+                        },
+                    },
+                    cmdline_popup = {
+                        border = { style = "rounded" },
+                        win_options = {
+                            winblend = 0,
+                            winhighlight = "Normal:NoiceCmdlinePopup,FloatBorder:NoiceCmdlinePopupBorder",
+                        },
+                    },
+                    popupmenu = {
+                        border = { style = "rounded" },
+                        win_options = {
+                            winblend = 0,
+                            winhighlight = "Normal:NoicePopupmenu,FloatBorder:NoicePopupmenuBorder",
+                        },
+                    },
+                },
+            })
             vim.notify = require("notify")
         end,
     },
@@ -912,6 +1047,345 @@ require("lazy").setup({
         end,
     },
 })
+
+local function start_btop_border_gradient()
+    local segment_groups = {}
+    for i = 1, 24 do
+        segment_groups[i] = "BtopBorder" .. i
+    end
+
+    local function num_to_rgb(num)
+        return {
+            r = math.floor(num / 65536) % 256,
+            g = math.floor(num / 256) % 256,
+            b = num % 256,
+        }
+    end
+
+    local function rgb_to_hex(rgb)
+        return string.format("#%02x%02x%02x", rgb.r, rgb.g, rgb.b)
+    end
+
+    local function blend(a, b, t)
+        return {
+            r = math.floor((a.r + (b.r - a.r) * t) + 0.5),
+            g = math.floor((a.g + (b.g - a.g) * t) + 0.5),
+            b = math.floor((a.b + (b.b - a.b) * t) + 0.5),
+        }
+    end
+
+    local function palette_color(palette, phase)
+        local n = #palette
+        local idx = math.floor(phase) % n
+        local from = palette[idx + 1]
+        local to = palette[(idx + 1) % n + 1]
+        local t = phase - math.floor(phase)
+        return blend(from, to, t)
+    end
+
+    local function phase_offset_from_name(name)
+        local acc = 0
+        for i = 1, #name do
+            acc = (acc * 33 + name:byte(i)) % 1024
+        end
+        return (acc % 127) / 23
+    end
+
+    local function hash_int(name)
+        local acc = 5381
+        for i = 1, #name do
+            acc = ((acc * 33) + name:byte(i)) % 2147483647
+        end
+        return acc
+    end
+
+    local function hl_rgb(name, field, fallback)
+        local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = name, link = false })
+        if ok and hl and type(hl[field]) == "number" then
+            return num_to_rgb(hl[field])
+        end
+        return fallback
+    end
+
+    local function border_chars_from(border)
+        local styles = {
+            rounded = { "╭", "─", "╮", "│", "╯", "─", "╰", "│" },
+            single = { "┌", "─", "┐", "│", "┘", "─", "└", "│" },
+            double = { "╔", "═", "╗", "║", "╝", "═", "╚", "║" },
+            solid = { " ", " ", " ", " ", " ", " ", " ", " " },
+        }
+        local rounded = styles.rounded
+        if border == nil then
+            return rounded
+        end
+        if type(border) == "string" then
+            if styles[border] then
+                return styles[border]
+            end
+            return rounded
+        end
+        if type(border) == "table" then
+            local out = {}
+            for i = 1, 8 do
+                local item = border[i]
+                if type(item) == "table" then
+                    out[i] = item[1]
+                elseif type(item) == "string" then
+                    out[i] = item
+                end
+            end
+            for i = 1, 8 do
+                out[i] = out[i] or rounded[i]
+            end
+            return out
+        end
+        return rounded
+    end
+
+    local function border_groups()
+        local ret = {
+            "FloatBorder",
+            "PmenuBorder",
+            "TelescopePromptBorder",
+            "TelescopeResultsBorder",
+            "TelescopePreviewBorder",
+            "NoicePopupBorder",
+            "NoiceCmdlinePopupBorder",
+            "NoicePopupmenuBorder",
+            "WhichKeyBorder",
+            "WinSeparator",
+            "NvimTreeWinSeparator",
+            "SnacksWinSeparator",
+            "SnacksInputBorder",
+            "SnacksGhBorder",
+            "SnacksGhScratchBorder",
+            "SnacksPickerBorder",
+            "SnacksPickerInputBorder",
+            "SnacksPickerListBorder",
+            "SnacksPickerPreviewBorder",
+            "SnacksPickerBoxBorder",
+        }
+        for _, name in ipairs(vim.fn.getcompletion("", "highlight")) do
+            if name:match("Border$") or name:match("WinSeparator$") then
+                ret[#ret + 1] = name
+            end
+        end
+        local seen = {}
+        local uniq = {}
+        for _, g in ipairs(ret) do
+            if not seen[g] then
+                seen[g] = true
+                uniq[#uniq + 1] = g
+            end
+        end
+        return uniq
+    end
+
+    local function install_progressive_float_borders()
+        if rawget(_G, "__btop_open_win_wrapped") then
+            return
+        end
+        _G.__btop_open_win_wrapped = true
+        _G.__btop_open_win_original = vim.api.nvim_open_win
+        vim.api.nvim_open_win = function(buffer, enter, opts)
+            opts = opts or {}
+            local is_float = opts.relative ~= nil and opts.relative ~= ""
+            if is_float and opts.border ~= "none" then
+                local ft = ""
+                if type(buffer) == "number" and buffer > 0 and vim.api.nvim_buf_is_valid(buffer) then
+                    local ok_ft, maybe_ft = pcall(function()
+                        return vim.bo[buffer].filetype
+                    end)
+                    if ok_ft and type(maybe_ft) == "string" then
+                        ft = maybe_ft
+                    end
+                end
+                local is_neo_tree_float = ft == "neo-tree" or ft == "neo-tree-popup" or ft == "neo-tree-preview"
+                local is_compact_float = (type(opts.height) == "number" and opts.height <= 3) or
+                    (type(opts.width) == "number" and opts.width <= 70)
+                local force_rounded = vim.g.btop_border_force_rounded ~= false
+                local chars = force_rounded and border_chars_from("rounded") or border_chars_from(opts.border)
+                local n = #segment_groups
+                local open_count = (rawget(_G, "__btop_border_open_count") or 0) + 1
+                _G.__btop_border_open_count = open_count
+                local shift = (open_count * 3) % n
+                local stride
+                if vim.g.border_gradient_test_mode then
+                    stride = 5
+                elseif is_neo_tree_float then
+                    -- Keep Neo-tree corners and edges tightly aligned.
+                    stride = 1
+                elseif is_compact_float then
+                    -- Make per-edge differences much more obvious on cmdline-sized popups.
+                    stride = 5
+                else
+                    stride = 3
+                end
+                opts.border = {
+                    { chars[1], segment_groups[((shift + (0 * stride)) % n) + 1] },
+                    { chars[2], segment_groups[((shift + (1 * stride)) % n) + 1] },
+                    { chars[3], segment_groups[((shift + (2 * stride)) % n) + 1] },
+                    { chars[4], segment_groups[((shift + (3 * stride)) % n) + 1] },
+                    { chars[5], segment_groups[((shift + (4 * stride)) % n) + 1] },
+                    { chars[6], segment_groups[((shift + (5 * stride)) % n) + 1] },
+                    { chars[7], segment_groups[((shift + (6 * stride)) % n) + 1] },
+                    { chars[8], segment_groups[((shift + (7 * stride)) % n) + 1] },
+                }
+            end
+            return _G.__btop_open_win_original(buffer, enter, opts)
+        end
+    end
+
+    install_progressive_float_borders()
+
+    local existing = rawget(_G, "__btop_border_gradient_timer")
+    if existing then
+        existing:stop()
+        existing:close()
+        _G.__btop_border_gradient_timer = nil
+    end
+
+    local step = 1
+    local tick = 0
+    local groups = border_groups()
+    local timer = vim.loop.new_timer()
+    _G.__btop_border_gradient_timer = timer
+    if vim.g.border_gradient_test_mode == nil then
+        vim.g.border_gradient_test_mode = false
+    end
+    if vim.g.btop_border_force_rounded == nil then
+        vim.g.btop_border_force_rounded = true
+    end
+
+    timer:start(0, 30, vim.schedule_wrap(function()
+        if #vim.api.nvim_list_uis() == 0 then
+            return
+        end
+        local normal_bg = hl_rgb("Normal", "bg", { r = 30, g = 30, b = 46 })
+        local float_bg = hl_rgb("NormalFloat", "bg", normal_bg)
+        local normal_fg = hl_rgb("Normal", "fg", { r = 205, g = 214, b = 244 })
+        local border_base = hl_rgb("FloatBorder", "fg", normal_fg)
+
+        local cat_palette = {
+            sapphire = hl_rgb("CatppuccinSapphire", "fg", { r = 116, g = 199, b = 236 }),
+            blue = hl_rgb("CatppuccinBlue", "fg", { r = 137, g = 180, b = 250 }),
+            lavender = hl_rgb("CatppuccinLavender", "fg", { r = 180, g = 190, b = 254 }),
+            sky = hl_rgb("CatppuccinSky", "fg", { r = 137, g = 220, b = 235 }),
+            teal = hl_rgb("CatppuccinTeal", "fg", { r = 148, g = 226, b = 213 }),
+            mauve = hl_rgb("CatppuccinMauve", "fg", { r = 203, g = 166, b = 247 }),
+            pink = hl_rgb("CatppuccinPink", "fg", { r = 245, g = 194, b = 231 }),
+            flamingo = hl_rgb("CatppuccinFlamingo", "fg", { r = 242, g = 205, b = 205 }),
+        }
+        local cat_motion_palette = {
+            cat_palette.sapphire,
+            cat_palette.blue,
+            cat_palette.sky,
+            cat_palette.teal,
+            cat_palette.lavender,
+            cat_palette.mauve,
+            cat_palette.pink,
+            cat_palette.flamingo,
+            cat_palette.lavender,
+            cat_palette.blue,
+        }
+        local test_palette = {
+            { r = 255, g = 0, b = 64 },
+            { r = 255, g = 153, b = 0 },
+            { r = 210, g = 255, b = 0 },
+            { r = 0, g = 255, b = 128 },
+            { r = 0, g = 224, b = 255 },
+            { r = 64, g = 112, b = 255 },
+            { r = 180, g = 64, b = 255 },
+            { r = 255, g = 0, b = 170 },
+        }
+
+        tick = tick + 1
+        if tick % 20 == 0 then
+            groups = border_groups()
+        end
+
+        for i, group in ipairs(segment_groups) do
+            local phase = step
+            if vim.g.border_gradient_test_mode then
+                phase = (step * 2.5) + ((i - 1) * 0.9)
+            else
+                local seg_speed = 1.0 + (((i % 7) - 3) * 0.045)
+                phase = (step * 2.05 * seg_speed) + ((i - 1) * 1.15) + (math.sin((step * 0.06) + (i * 0.75)) * 0.2)
+            end
+            local color
+            if vim.g.border_gradient_test_mode then
+                color = palette_color(test_palette, phase)
+            else
+                local cat_color = palette_color(cat_motion_palette, phase)
+                color = blend(border_base, cat_color, 0.68)
+            end
+            vim.api.nvim_set_hl(0, group, { fg = rgb_to_hex(color), bg = rgb_to_hex(float_bg) })
+        end
+
+        for offset, group in ipairs(groups) do
+            local phase = step
+            if vim.g.border_gradient_test_mode then
+                phase = step + ((offset - 1) * 0.35)
+            else
+                local hash = hash_int(group)
+                local speed = 0.86 + ((hash % 17) * 0.022)
+                phase = (step * speed) + ((offset - 1) * 0.28) + phase_offset_from_name(group)
+            end
+            local shifted
+            if vim.g.border_gradient_test_mode then
+                shifted = palette_color(test_palette, phase)
+            else
+                local cat_band = palette_color(cat_motion_palette, phase + 0.6)
+                shifted = blend(border_base, cat_band, 0.62)
+            end
+            local group_bg = hl_rgb(group, "bg", float_bg)
+            local softened = vim.g.border_gradient_test_mode and shifted or blend(shifted, group_bg, 0.01)
+            vim.api.nvim_set_hl(0, group, { fg = rgb_to_hex(softened), bg = rgb_to_hex(group_bg) })
+        end
+        -- mini.files uses its own FloatBorder remap; keep regular/modified border groups synchronized.
+        local mini_phase = vim.g.border_gradient_test_mode and (step * 1.6) or ((step * 1.05) + 1.1)
+        local mini_color
+        if vim.g.border_gradient_test_mode then
+            mini_color = palette_color(test_palette, mini_phase)
+        else
+            local mini_band = palette_color(cat_motion_palette, mini_phase + 0.2)
+            mini_color = blend(border_base, mini_band, 0.62)
+        end
+        local mini_bg = hl_rgb("MiniFilesBorder", "bg", float_bg)
+        local mini_fg = vim.g.border_gradient_test_mode and mini_color or blend(mini_color, mini_bg, 0.01)
+        vim.api.nvim_set_hl(0, "MiniFilesBorder", { fg = rgb_to_hex(mini_fg), bg = rgb_to_hex(mini_bg) })
+        vim.api.nvim_set_hl(0, "MiniFilesBorderModified", { fg = rgb_to_hex(mini_fg), bg = rgb_to_hex(mini_bg) })
+
+        local noice_fg = hl_rgb("NormalFloat", "fg", normal_fg)
+        local noice_bg = rgb_to_hex(float_bg)
+        vim.api.nvim_set_hl(0, "NoicePopup", { fg = rgb_to_hex(noice_fg), bg = noice_bg })
+        vim.api.nvim_set_hl(0, "NoiceCmdlinePopup", { fg = rgb_to_hex(noice_fg), bg = noice_bg })
+        vim.api.nvim_set_hl(0, "NoicePopupmenu", { fg = rgb_to_hex(noice_fg), bg = noice_bg })
+
+        step = step + (vim.g.border_gradient_test_mode and 0.18 or 0.035)
+        pcall(vim.cmd, "redraw")
+    end))
+end
+
+local border_gradient_augroup = vim.api.nvim_create_augroup("BtopBorderGradient", { clear = true })
+vim.api.nvim_create_autocmd("ColorScheme", {
+    group = border_gradient_augroup,
+    callback = function()
+        start_btop_border_gradient()
+    end,
+})
+vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = border_gradient_augroup,
+    callback = function()
+        local timer = rawget(_G, "__btop_border_gradient_timer")
+        if timer then
+            timer:stop()
+            timer:close()
+            _G.__btop_border_gradient_timer = nil
+        end
+    end,
+})
+start_btop_border_gradient()
 
 -- LSP and diagnostics configuration
 local cmp_caps = require("cmp_nvim_lsp").default_capabilities()
