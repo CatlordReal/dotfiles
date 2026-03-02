@@ -17,6 +17,198 @@ vim.opt.pumblend = 0
 vim.opt.cursorlineopt = "number"
 vim.o.winborder = "rounded"
 
+local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
+local catppuccin_flavour_file = vim.fn.stdpath("state") .. "/catppuccin_flavour.txt"
+
+local function normalize_catppuccin_flavour(flavour)
+    if type(flavour) ~= "string" then
+        return "mocha"
+    end
+    local value = flavour:lower()
+    for _, candidate in ipairs(catppuccin_flavour_list) do
+        if candidate == value then
+            return value
+        end
+    end
+    return "mocha"
+end
+
+local function catppuccin_reactive_load(flavour)
+    local value = normalize_catppuccin_flavour(flavour)
+    return {
+        "catppuccin-" .. value .. "-cursor",
+        "catppuccin-" .. value .. "-cursorline",
+    }
+end
+
+local function read_catppuccin_flavour()
+    local ok, lines = pcall(vim.fn.readfile, catppuccin_flavour_file)
+    if not ok or type(lines) ~= "table" or #lines == 0 then
+        return nil
+    end
+    return normalize_catppuccin_flavour(lines[1])
+end
+
+local function persist_catppuccin_flavour(flavour)
+    local value = normalize_catppuccin_flavour(flavour)
+    local state_dir = vim.fn.fnamemodify(catppuccin_flavour_file, ":h")
+    vim.fn.mkdir(state_dir, "p")
+    local ok = vim.fn.writefile({ value }, catppuccin_flavour_file)
+    if ok ~= 0 then
+        vim.notify("Failed to persist Catppuccin flavour", vim.log.levels.WARN)
+        return false
+    end
+    return true
+end
+
+local function apply_catppuccin_flavour(flavour)
+    local value = normalize_catppuccin_flavour(flavour)
+    vim.g.catppuccin_flavour = value
+
+    local ok_theme, theme_err = pcall(function()
+        vim.o.background = (value == "latte") and "light" or "dark"
+        if type(_G.__setup_catppuccin_theme) == "function" then
+            _G.__setup_catppuccin_theme(value)
+        end
+        if type(_G.__load_catppuccin_flavour) == "function" then
+            _G.__load_catppuccin_flavour(value)
+        else
+            local ok = pcall(vim.cmd.colorscheme, "catppuccin-" .. value)
+            if not ok then
+                vim.cmd.colorscheme("catppuccin")
+            end
+        end
+    end)
+    if not ok_theme then
+        vim.notify("Failed to apply Catppuccin flavour: " .. tostring(theme_err), vim.log.levels.ERROR)
+        return
+    end
+
+    if type(_G.__setup_feline_catppuccin) == "function" then
+        local ok_feline, feline_err = pcall(_G.__setup_feline_catppuccin, value)
+        if not ok_feline then
+            vim.notify("Feline refresh failed: " .. tostring(feline_err), vim.log.levels.WARN)
+        end
+    end
+    if type(_G.__setup_reactive_catppuccin) == "function" then
+        local ok_reactive, reactive_err = pcall(_G.__setup_reactive_catppuccin, value)
+        if not ok_reactive then
+            vim.notify("Reactive refresh failed: " .. tostring(reactive_err), vim.log.levels.WARN)
+        end
+    end
+
+    persist_catppuccin_flavour(value)
+    vim.cmd("redraw")
+end
+
+local function choose_catppuccin_flavour()
+    local flavours = catppuccin_flavour_list
+    local current = normalize_catppuccin_flavour(vim.g.catppuccin_flavour)
+    local lines = {
+        "Catppuccin Flavour",
+        "j/k move, <CR> choose, 1-4 quick select, q close",
+        "",
+    }
+
+    for i, flavour in ipairs(flavours) do
+        local marker = flavour == current and "*" or " "
+        table.insert(lines, string.format("%s %d. %s", marker, i, flavour))
+    end
+
+    local width = 0
+    for _, line in ipairs(lines) do
+        width = math.max(width, vim.fn.strdisplaywidth(line))
+    end
+    width = math.max(width + 4, 44)
+    local height = #lines
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].modifiable = true
+    vim.bo[buf].filetype = "catppuccin-picker"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+
+    local row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1)
+    local col = math.max(0, math.floor((vim.o.columns - width) / 2))
+    local win = vim.api.nvim_open_win(buf, true, {
+        relative = "editor",
+        style = "minimal",
+        border = "rounded",
+        width = width,
+        height = height,
+        row = row,
+        col = col,
+    })
+
+    vim.wo[win].cursorline = true
+    vim.wo[win].number = false
+    vim.wo[win].relativenumber = false
+    vim.wo[win].signcolumn = "no"
+
+    local first_choice_row = 4
+    local last_choice_row = first_choice_row + #flavours - 1
+    local start_row = first_choice_row
+    for i, flavour in ipairs(flavours) do
+        if flavour == current then
+            start_row = first_choice_row + i - 1
+            break
+        end
+    end
+    vim.api.nvim_win_set_cursor(win, { start_row, 0 })
+
+    local function close_picker()
+        if vim.api.nvim_win_is_valid(win) then
+            vim.api.nvim_win_close(win, true)
+        end
+    end
+
+    local function select_index(index)
+        local flavour = flavours[index]
+        if not flavour then
+            return
+        end
+        close_picker()
+        apply_catppuccin_flavour(flavour)
+    end
+
+    local function select_current_row()
+        if not vim.api.nvim_win_is_valid(win) then
+            return
+        end
+        local cursor_row = vim.api.nvim_win_get_cursor(win)[1]
+        local index = cursor_row - first_choice_row + 1
+        select_index(index)
+    end
+
+    local function move_cursor(delta)
+        if not vim.api.nvim_win_is_valid(win) then
+            return
+        end
+        local cursor_row = vim.api.nvim_win_get_cursor(win)[1]
+        local new_row = math.min(last_choice_row, math.max(first_choice_row, cursor_row + delta))
+        vim.api.nvim_win_set_cursor(win, { new_row, 0 })
+    end
+
+    local opts = { buffer = buf, nowait = true, silent = true }
+    vim.keymap.set("n", "q", close_picker, opts)
+    vim.keymap.set("n", "<Esc>", close_picker, opts)
+    vim.keymap.set("n", "<CR>", select_current_row, opts)
+    vim.keymap.set("n", "j", function() move_cursor(1) end, opts)
+    vim.keymap.set("n", "k", function() move_cursor(-1) end, opts)
+    vim.keymap.set("n", "<Down>", function() move_cursor(1) end, opts)
+    vim.keymap.set("n", "<Up>", function() move_cursor(-1) end, opts)
+
+    for i = 1, #flavours do
+        vim.keymap.set("n", tostring(i), function() select_index(i) end, opts)
+    end
+end
+
+vim.g.catppuccin_flavour = normalize_catppuccin_flavour(read_catppuccin_flavour() or vim.g.catppuccin_flavour)
+vim.api.nvim_create_user_command("CatppuccinFlavour", choose_catppuccin_flavour, {
+    desc = "Pick Catppuccin flavour",
+})
+
 -- lazy.nvim bootstrap
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.loop.fs_stat(lazypath) then
@@ -183,6 +375,7 @@ require("lazy").setup({
             { "<leader>sR",      function() Snacks.picker.resume() end,                                  desc = "Resume" },
             { "<leader>su",      function() Snacks.picker.undo() end,                                    desc = "Undo History" },
             { "<leader>uC",      function() Snacks.picker.colorschemes() end,                            desc = "Colorschemes" },
+            { "<leader>cc",      choose_catppuccin_flavour,                                               desc = "Choose Catppuccin Flavour" },
             -- LSP
             { "gd",              function() Snacks.picker.lsp_definitions() end,                         desc = "Goto Definition" },
             { "gD",              function() Snacks.picker.lsp_declarations() end,                        desc = "Goto Declaration" },
@@ -392,113 +585,45 @@ require("lazy").setup({
     {
         "rasulomaroff/reactive.nvim",
         event = { "BufEnter", "WinEnter" },
-        opts = {
-            load = { "catppuccin-mocha-cursor", "catppuccin-mocha-cursorline" },
-        },
+        config = function()
+            _G.__setup_reactive_catppuccin = function(flavour)
+                local ok, reactive = pcall(require, "reactive")
+                if not ok then
+                    return
+                end
+                reactive.setup({
+                    load = catppuccin_reactive_load(flavour),
+                })
+            end
+            _G.__setup_reactive_catppuccin(vim.g.catppuccin_flavour)
+        end,
     },
     {
-        "nvim-lualine/lualine.nvim",
-        dependencies = { "nvim-tree/nvim-web-devicons" },
+        "famiu/feline.nvim",
+        dependencies = { "catppuccin/nvim", "nvim-tree/nvim-web-devicons" },
         config = function()
-            local palette = require("catppuccin.palettes").get_palette("mocha")
-            local theme = require("catppuccin.utils.lualine")("mocha")
-            local rounded_capsule = { left = "", right = "" }
+            _G.__setup_feline_catppuccin = function(flavour)
+                local value = normalize_catppuccin_flavour(flavour)
+                vim.g.catppuccin_flavour = value
+                local feline = require("feline")
 
-            local function cwd_tail()
-                return vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
+                -- Prefer the newer official Catppuccin integration path; fallback for older releases.
+                local ok_groups, feline_groups = pcall(require, "catppuccin.groups.integrations.feline")
+                if ok_groups and type(feline_groups.get) == "function" then
+                    feline.setup({
+                        components = feline_groups.get(),
+                    })
+                    return
+                end
+
+                local ok_special, feline_special = pcall(require, "catppuccin.special.feline")
+                if ok_special and type(feline_special.get_statusline) == "function" then
+                    feline.setup({
+                        components = feline_special.get_statusline(),
+                    })
+                end
             end
-
-            local function filename_color()
-                return { fg = palette.base, bg = palette.blue, gui = "bold" }
-            end
-
-            theme.normal.a = { fg = palette.base, bg = palette.sapphire, gui = "bold" }
-            theme.normal.b = { fg = palette.text, bg = palette.surface0 }
-            theme.normal.c = { fg = palette.subtext1, bg = palette.mantle }
-
-            require("lualine").setup({
-                options = {
-                    theme = theme,
-                    icons_enabled = true,
-                    component_separators = "",
-                    section_separators = "",
-                    globalstatus = true,
-                    disabled_filetypes = { statusline = { "NvimTree" } },
-                },
-                sections = {
-                    lualine_a = {
-                        {
-                            "mode",
-                            icon = "",
-                            separator = rounded_capsule,
-                            padding = { left = 1, right = 1 },
-                        },
-                    },
-                    lualine_b = {
-                        {
-                            "branch",
-                            icon = "",
-                            separator = rounded_capsule,
-                            color = { fg = palette.base, bg = palette.sky, gui = "bold" },
-                            cond = function()
-                                return vim.b.gitsigns_head ~= nil and vim.b.gitsigns_head ~= ""
-                            end,
-                        },
-                    },
-                    lualine_c = {
-                        {
-                            "diagnostics",
-                            sources = { "nvim_diagnostic" },
-                            symbols = { error = " ", warn = " ", info = " ", hint = " " },
-                            separator = rounded_capsule,
-                            color = { fg = palette.base, bg = palette.lavender, gui = "bold" },
-                        },
-                    },
-                    lualine_x = {
-                        {
-                            "filename",
-                            path = 0,
-                            separator = rounded_capsule,
-                            color = filename_color,
-                        },
-                    },
-                    lualine_y = {
-                        {
-                            "progress",
-                            separator = rounded_capsule,
-                            color = { fg = palette.base, bg = palette.teal, gui = "bold" },
-                        },
-                        {
-                            "location",
-                            separator = rounded_capsule,
-                            color = { fg = palette.base, bg = palette.green, gui = "bold" },
-                        },
-                    },
-                    lualine_z = {
-                        {
-                            cwd_tail,
-                            icon = "",
-                            separator = rounded_capsule,
-                            color = { fg = palette.base, bg = palette.mauve, gui = "bold" },
-                            padding = { left = 1, right = 1 },
-                        },
-                    },
-                },
-                inactive_sections = {
-                    lualine_a = {},
-                    lualine_b = {},
-                    lualine_c = {
-                        {
-                            "filename",
-                            path = 0,
-                            separator = rounded_capsule,
-                        },
-                    },
-                    lualine_x = {},
-                    lualine_y = {},
-                    lualine_z = {},
-                },
-            })
+            _G.__setup_feline_catppuccin(vim.g.catppuccin_flavour)
         end,
     },
     {
@@ -508,60 +633,26 @@ require("lazy").setup({
         priority = 1000,
         config = function(
         )
-            require("catppuccin").setup({
-                flavour = "mocha",
-                transparent_background = false,
-                custom_highlights = function(c)
-                    return {
-                        NormalFloat = { fg = c.text, bg = c.base },
-                        FloatBorder = { fg = c.sapphire, bg = c.base },
-                        FloatTitle = { fg = c.base, bg = c.lavender, bold = true },
-                        Pmenu = { fg = c.text, bg = c.base },
-                        PmenuSel = { fg = c.sapphire, bg = c.surface1, bold = true },
-                        PmenuBorder = { fg = c.sky, bg = c.base },
-
-                        TelescopePromptBorder = { fg = c.sapphire, bg = c.base },
-                        TelescopePromptNormal = { bg = c.base },
-                        TelescopePromptTitle = { fg = c.base, bg = c.sapphire, bold = true },
-                        TelescopeResultsBorder = { fg = c.lavender, bg = c.base },
-                        TelescopeResultsNormal = { bg = c.base },
-                        TelescopeResultsTitle = { fg = c.base, bg = c.lavender, bold = true },
-                        TelescopePreviewBorder = { fg = c.mauve, bg = c.base },
-                        TelescopePreviewNormal = { bg = c.base },
-                        TelescopePreviewTitle = { fg = c.base, bg = c.mauve, bold = true },
-
-                        WhichKeyBorder = { fg = c.blue, bg = c.base },
-                        NoiceCmdlinePopup = { fg = c.text, bg = c.base },
-                        NoiceCmdlinePopupBorder = { fg = c.sapphire, bg = c.base },
-                        NoicePopup = { fg = c.text, bg = c.base },
-                        NoicePopupBorder = { fg = c.lavender, bg = c.base },
-                        NoicePopupmenu = { fg = c.text, bg = c.base },
-                        NoicePopupmenuBorder = { fg = c.mauve, bg = c.base },
-                    }
-                end,
-                integrations = {
-                    treesitter = true,
-                    nvimtree = true,
-                    telescope = { enabled = true },
-                    -- lualine = true,
-                    bufferline = true,
-                    mason = true,
-                    which_key = true,
-                    cmp = true,
-                    dap = true,
-                    dap_ui = true,
-                    gitsigns = true,
-                    illuminate = { enabled = true },
-                    lsp_trouble = true,
-                    noice = true,
-                    overseer = true,
-                    mini = { enabled = true },
-                    ufo = true,
-                    treesitter_context = true,
-                    indent_blankline = { enabled = true },
-                },
-            })
-            vim.cmd.colorscheme("catppuccin")
+            _G.__setup_catppuccin_theme = function(flavour)
+                local value = normalize_catppuccin_flavour(flavour)
+                require("catppuccin").setup({
+                    flavour = value,
+                })
+            end
+            _G.__load_catppuccin_flavour = function(flavour)
+                local value = normalize_catppuccin_flavour(flavour)
+                vim.g.catppuccin_flavour = value
+                vim.o.background = (value == "latte") and "light" or "dark"
+                local ok = pcall(vim.cmd.colorscheme, "catppuccin-" .. value)
+                if not ok then
+                    vim.cmd.colorscheme("catppuccin")
+                end
+            end
+            _G.__setup_catppuccin_theme(vim.g.catppuccin_flavour)
+            _G.__load_catppuccin_flavour(vim.g.catppuccin_flavour)
+            if type(_G.__setup_feline_catppuccin) == "function" then
+                _G.__setup_feline_catppuccin(vim.g.catppuccin_flavour)
+            end
         end,
     },
     {
@@ -1048,345 +1139,6 @@ require("lazy").setup({
     },
 })
 
-local function start_btop_border_gradient()
-    local segment_groups = {}
-    for i = 1, 24 do
-        segment_groups[i] = "BtopBorder" .. i
-    end
-
-    local function num_to_rgb(num)
-        return {
-            r = math.floor(num / 65536) % 256,
-            g = math.floor(num / 256) % 256,
-            b = num % 256,
-        }
-    end
-
-    local function rgb_to_hex(rgb)
-        return string.format("#%02x%02x%02x", rgb.r, rgb.g, rgb.b)
-    end
-
-    local function blend(a, b, t)
-        return {
-            r = math.floor((a.r + (b.r - a.r) * t) + 0.5),
-            g = math.floor((a.g + (b.g - a.g) * t) + 0.5),
-            b = math.floor((a.b + (b.b - a.b) * t) + 0.5),
-        }
-    end
-
-    local function palette_color(palette, phase)
-        local n = #palette
-        local idx = math.floor(phase) % n
-        local from = palette[idx + 1]
-        local to = palette[(idx + 1) % n + 1]
-        local t = phase - math.floor(phase)
-        return blend(from, to, t)
-    end
-
-    local function phase_offset_from_name(name)
-        local acc = 0
-        for i = 1, #name do
-            acc = (acc * 33 + name:byte(i)) % 1024
-        end
-        return (acc % 127) / 23
-    end
-
-    local function hash_int(name)
-        local acc = 5381
-        for i = 1, #name do
-            acc = ((acc * 33) + name:byte(i)) % 2147483647
-        end
-        return acc
-    end
-
-    local function hl_rgb(name, field, fallback)
-        local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = name, link = false })
-        if ok and hl and type(hl[field]) == "number" then
-            return num_to_rgb(hl[field])
-        end
-        return fallback
-    end
-
-    local function border_chars_from(border)
-        local styles = {
-            rounded = { "╭", "─", "╮", "│", "╯", "─", "╰", "│" },
-            single = { "┌", "─", "┐", "│", "┘", "─", "└", "│" },
-            double = { "╔", "═", "╗", "║", "╝", "═", "╚", "║" },
-            solid = { " ", " ", " ", " ", " ", " ", " ", " " },
-        }
-        local rounded = styles.rounded
-        if border == nil then
-            return rounded
-        end
-        if type(border) == "string" then
-            if styles[border] then
-                return styles[border]
-            end
-            return rounded
-        end
-        if type(border) == "table" then
-            local out = {}
-            for i = 1, 8 do
-                local item = border[i]
-                if type(item) == "table" then
-                    out[i] = item[1]
-                elseif type(item) == "string" then
-                    out[i] = item
-                end
-            end
-            for i = 1, 8 do
-                out[i] = out[i] or rounded[i]
-            end
-            return out
-        end
-        return rounded
-    end
-
-    local function border_groups()
-        local ret = {
-            "FloatBorder",
-            "PmenuBorder",
-            "TelescopePromptBorder",
-            "TelescopeResultsBorder",
-            "TelescopePreviewBorder",
-            "NoicePopupBorder",
-            "NoiceCmdlinePopupBorder",
-            "NoicePopupmenuBorder",
-            "WhichKeyBorder",
-            "WinSeparator",
-            "NvimTreeWinSeparator",
-            "SnacksWinSeparator",
-            "SnacksInputBorder",
-            "SnacksGhBorder",
-            "SnacksGhScratchBorder",
-            "SnacksPickerBorder",
-            "SnacksPickerInputBorder",
-            "SnacksPickerListBorder",
-            "SnacksPickerPreviewBorder",
-            "SnacksPickerBoxBorder",
-        }
-        for _, name in ipairs(vim.fn.getcompletion("", "highlight")) do
-            if name:match("Border$") or name:match("WinSeparator$") then
-                ret[#ret + 1] = name
-            end
-        end
-        local seen = {}
-        local uniq = {}
-        for _, g in ipairs(ret) do
-            if not seen[g] then
-                seen[g] = true
-                uniq[#uniq + 1] = g
-            end
-        end
-        return uniq
-    end
-
-    local function install_progressive_float_borders()
-        if rawget(_G, "__btop_open_win_wrapped") then
-            return
-        end
-        _G.__btop_open_win_wrapped = true
-        _G.__btop_open_win_original = vim.api.nvim_open_win
-        vim.api.nvim_open_win = function(buffer, enter, opts)
-            opts = opts or {}
-            local is_float = opts.relative ~= nil and opts.relative ~= ""
-            if is_float and opts.border ~= "none" then
-                local ft = ""
-                if type(buffer) == "number" and buffer > 0 and vim.api.nvim_buf_is_valid(buffer) then
-                    local ok_ft, maybe_ft = pcall(function()
-                        return vim.bo[buffer].filetype
-                    end)
-                    if ok_ft and type(maybe_ft) == "string" then
-                        ft = maybe_ft
-                    end
-                end
-                local is_neo_tree_float = ft == "neo-tree" or ft == "neo-tree-popup" or ft == "neo-tree-preview"
-                local is_compact_float = (type(opts.height) == "number" and opts.height <= 3) or
-                    (type(opts.width) == "number" and opts.width <= 70)
-                local force_rounded = vim.g.btop_border_force_rounded ~= false
-                local chars = force_rounded and border_chars_from("rounded") or border_chars_from(opts.border)
-                local n = #segment_groups
-                local open_count = (rawget(_G, "__btop_border_open_count") or 0) + 1
-                _G.__btop_border_open_count = open_count
-                local shift = (open_count * 3) % n
-                local stride
-                if vim.g.border_gradient_test_mode then
-                    stride = 5
-                elseif is_neo_tree_float then
-                    -- Keep Neo-tree corners and edges tightly aligned.
-                    stride = 1
-                elseif is_compact_float then
-                    -- Make per-edge differences much more obvious on cmdline-sized popups.
-                    stride = 5
-                else
-                    stride = 3
-                end
-                opts.border = {
-                    { chars[1], segment_groups[((shift + (0 * stride)) % n) + 1] },
-                    { chars[2], segment_groups[((shift + (1 * stride)) % n) + 1] },
-                    { chars[3], segment_groups[((shift + (2 * stride)) % n) + 1] },
-                    { chars[4], segment_groups[((shift + (3 * stride)) % n) + 1] },
-                    { chars[5], segment_groups[((shift + (4 * stride)) % n) + 1] },
-                    { chars[6], segment_groups[((shift + (5 * stride)) % n) + 1] },
-                    { chars[7], segment_groups[((shift + (6 * stride)) % n) + 1] },
-                    { chars[8], segment_groups[((shift + (7 * stride)) % n) + 1] },
-                }
-            end
-            return _G.__btop_open_win_original(buffer, enter, opts)
-        end
-    end
-
-    install_progressive_float_borders()
-
-    local existing = rawget(_G, "__btop_border_gradient_timer")
-    if existing then
-        existing:stop()
-        existing:close()
-        _G.__btop_border_gradient_timer = nil
-    end
-
-    local step = 1
-    local tick = 0
-    local groups = border_groups()
-    local timer = vim.loop.new_timer()
-    _G.__btop_border_gradient_timer = timer
-    if vim.g.border_gradient_test_mode == nil then
-        vim.g.border_gradient_test_mode = false
-    end
-    if vim.g.btop_border_force_rounded == nil then
-        vim.g.btop_border_force_rounded = true
-    end
-
-    timer:start(0, 30, vim.schedule_wrap(function()
-        if #vim.api.nvim_list_uis() == 0 then
-            return
-        end
-        local normal_bg = hl_rgb("Normal", "bg", { r = 30, g = 30, b = 46 })
-        local float_bg = hl_rgb("NormalFloat", "bg", normal_bg)
-        local normal_fg = hl_rgb("Normal", "fg", { r = 205, g = 214, b = 244 })
-        local border_base = hl_rgb("FloatBorder", "fg", normal_fg)
-
-        local cat_palette = {
-            sapphire = hl_rgb("CatppuccinSapphire", "fg", { r = 116, g = 199, b = 236 }),
-            blue = hl_rgb("CatppuccinBlue", "fg", { r = 137, g = 180, b = 250 }),
-            lavender = hl_rgb("CatppuccinLavender", "fg", { r = 180, g = 190, b = 254 }),
-            sky = hl_rgb("CatppuccinSky", "fg", { r = 137, g = 220, b = 235 }),
-            teal = hl_rgb("CatppuccinTeal", "fg", { r = 148, g = 226, b = 213 }),
-            mauve = hl_rgb("CatppuccinMauve", "fg", { r = 203, g = 166, b = 247 }),
-            pink = hl_rgb("CatppuccinPink", "fg", { r = 245, g = 194, b = 231 }),
-            flamingo = hl_rgb("CatppuccinFlamingo", "fg", { r = 242, g = 205, b = 205 }),
-        }
-        local cat_motion_palette = {
-            cat_palette.sapphire,
-            cat_palette.blue,
-            cat_palette.sky,
-            cat_palette.teal,
-            cat_palette.lavender,
-            cat_palette.mauve,
-            cat_palette.pink,
-            cat_palette.flamingo,
-            cat_palette.lavender,
-            cat_palette.blue,
-        }
-        local test_palette = {
-            { r = 255, g = 0, b = 64 },
-            { r = 255, g = 153, b = 0 },
-            { r = 210, g = 255, b = 0 },
-            { r = 0, g = 255, b = 128 },
-            { r = 0, g = 224, b = 255 },
-            { r = 64, g = 112, b = 255 },
-            { r = 180, g = 64, b = 255 },
-            { r = 255, g = 0, b = 170 },
-        }
-
-        tick = tick + 1
-        if tick % 20 == 0 then
-            groups = border_groups()
-        end
-
-        for i, group in ipairs(segment_groups) do
-            local phase = step
-            if vim.g.border_gradient_test_mode then
-                phase = (step * 2.5) + ((i - 1) * 0.9)
-            else
-                local seg_speed = 1.0 + (((i % 7) - 3) * 0.045)
-                phase = (step * 2.05 * seg_speed) + ((i - 1) * 1.15) + (math.sin((step * 0.06) + (i * 0.75)) * 0.2)
-            end
-            local color
-            if vim.g.border_gradient_test_mode then
-                color = palette_color(test_palette, phase)
-            else
-                local cat_color = palette_color(cat_motion_palette, phase)
-                color = blend(border_base, cat_color, 0.68)
-            end
-            vim.api.nvim_set_hl(0, group, { fg = rgb_to_hex(color), bg = rgb_to_hex(float_bg) })
-        end
-
-        for offset, group in ipairs(groups) do
-            local phase = step
-            if vim.g.border_gradient_test_mode then
-                phase = step + ((offset - 1) * 0.35)
-            else
-                local hash = hash_int(group)
-                local speed = 0.86 + ((hash % 17) * 0.022)
-                phase = (step * speed) + ((offset - 1) * 0.28) + phase_offset_from_name(group)
-            end
-            local shifted
-            if vim.g.border_gradient_test_mode then
-                shifted = palette_color(test_palette, phase)
-            else
-                local cat_band = palette_color(cat_motion_palette, phase + 0.6)
-                shifted = blend(border_base, cat_band, 0.62)
-            end
-            local group_bg = hl_rgb(group, "bg", float_bg)
-            local softened = vim.g.border_gradient_test_mode and shifted or blend(shifted, group_bg, 0.01)
-            vim.api.nvim_set_hl(0, group, { fg = rgb_to_hex(softened), bg = rgb_to_hex(group_bg) })
-        end
-        -- mini.files uses its own FloatBorder remap; keep regular/modified border groups synchronized.
-        local mini_phase = vim.g.border_gradient_test_mode and (step * 1.6) or ((step * 1.05) + 1.1)
-        local mini_color
-        if vim.g.border_gradient_test_mode then
-            mini_color = palette_color(test_palette, mini_phase)
-        else
-            local mini_band = palette_color(cat_motion_palette, mini_phase + 0.2)
-            mini_color = blend(border_base, mini_band, 0.62)
-        end
-        local mini_bg = hl_rgb("MiniFilesBorder", "bg", float_bg)
-        local mini_fg = vim.g.border_gradient_test_mode and mini_color or blend(mini_color, mini_bg, 0.01)
-        vim.api.nvim_set_hl(0, "MiniFilesBorder", { fg = rgb_to_hex(mini_fg), bg = rgb_to_hex(mini_bg) })
-        vim.api.nvim_set_hl(0, "MiniFilesBorderModified", { fg = rgb_to_hex(mini_fg), bg = rgb_to_hex(mini_bg) })
-
-        local noice_fg = hl_rgb("NormalFloat", "fg", normal_fg)
-        local noice_bg = rgb_to_hex(float_bg)
-        vim.api.nvim_set_hl(0, "NoicePopup", { fg = rgb_to_hex(noice_fg), bg = noice_bg })
-        vim.api.nvim_set_hl(0, "NoiceCmdlinePopup", { fg = rgb_to_hex(noice_fg), bg = noice_bg })
-        vim.api.nvim_set_hl(0, "NoicePopupmenu", { fg = rgb_to_hex(noice_fg), bg = noice_bg })
-
-        step = step + (vim.g.border_gradient_test_mode and 0.18 or 0.035)
-        pcall(vim.cmd, "redraw")
-    end))
-end
-
-local border_gradient_augroup = vim.api.nvim_create_augroup("BtopBorderGradient", { clear = true })
-vim.api.nvim_create_autocmd("ColorScheme", {
-    group = border_gradient_augroup,
-    callback = function()
-        start_btop_border_gradient()
-    end,
-})
-vim.api.nvim_create_autocmd("VimLeavePre", {
-    group = border_gradient_augroup,
-    callback = function()
-        local timer = rawget(_G, "__btop_border_gradient_timer")
-        if timer then
-            timer:stop()
-            timer:close()
-            _G.__btop_border_gradient_timer = nil
-        end
-    end,
-})
-start_btop_border_gradient()
-
 -- LSP and diagnostics configuration
 local cmp_caps = require("cmp_nvim_lsp").default_capabilities()
 
@@ -1721,6 +1473,7 @@ vim.keymap.set("n", "<leader>fb", function() require("telescope.builtin").buffer
 vim.keymap.set("n", "<leader>fh", function() require("telescope.builtin").help_tags() end,
     { silent = true, desc = "Help Tags" })
 vim.keymap.set("n", "<leader>ft", "<cmd>TodoTelescope<CR>", { silent = true, desc = "TODOs" })
+vim.keymap.set("n", "<leader>cc", choose_catppuccin_flavour, { silent = true, desc = "Choose Catppuccin Flavour" })
 
 -- Code actions
 
@@ -1892,6 +1645,9 @@ wkr = require("which-key") -- alias for clarity in modifications
 wkr.add({
     -- File explorer
     { "<leader>e",  function() require("oil").open() end,                     desc = "File Explorer (Oil)" },
+    -- Colors
+    { "<leader>c",  group = "Colors" },
+    { "<leader>cc", choose_catppuccin_flavour,                                desc = "Choose Catppuccin Flavour" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
     -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
     -- Open
