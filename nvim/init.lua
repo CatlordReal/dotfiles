@@ -17,12 +17,13 @@ vim.opt.pumblend = 0
 vim.opt.cursorlineopt = "number"
 vim.o.winborder = "rounded"
 
+local CATPPUCCIN_DEFAULT_THEME = "mocha"
 local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
 local catppuccin_flavour_file = vim.fn.stdpath("state") .. "/catppuccin_flavour.txt"
 
 local function normalize_catppuccin_flavour(flavour)
     if type(flavour) ~= "string" then
-        return "mocha"
+        return CATPPUCCIN_DEFAULT_THEME
     end
     local value = flavour:lower()
     for _, candidate in ipairs(catppuccin_flavour_list) do
@@ -30,15 +31,7 @@ local function normalize_catppuccin_flavour(flavour)
             return value
         end
     end
-    return "mocha"
-end
-
-local function catppuccin_reactive_load(flavour)
-    local value = normalize_catppuccin_flavour(flavour)
-    return {
-        "catppuccin-" .. value .. "-cursor",
-        "catppuccin-" .. value .. "-cursorline",
-    }
+    return CATPPUCCIN_DEFAULT_THEME
 end
 
 local function read_catppuccin_flavour()
@@ -56,33 +49,76 @@ local function persist_catppuccin_flavour(flavour)
     local ok = vim.fn.writefile({ value }, catppuccin_flavour_file)
     if ok ~= 0 then
         vim.notify("Failed to persist Catppuccin flavour", vim.log.levels.WARN)
-        return false
     end
-    return true
 end
 
-local function apply_catppuccin_flavour(flavour)
+local function catppuccin_reactive_load(flavour)
     local value = normalize_catppuccin_flavour(flavour)
+    return {
+        "catppuccin-" .. value .. "-cursor",
+        "catppuccin-" .. value .. "-cursorline",
+    }
+end
+
+local function clear_catppuccin_feline_cache()
+    package.loaded["catppuccin.groups.integrations.feline"] = nil
+    package.loaded["catppuccin.special.feline"] = nil
+end
+
+local function clear_feline_cache()
+    for name, _ in pairs(package.loaded) do
+        if name:match("^feline") then
+            package.loaded[name] = nil
+        end
+    end
+end
+
+local function load_catppuccin_colorscheme(flavour)
+    local value = normalize_catppuccin_flavour(flavour)
+    vim.g.catppuccin_flavour = value
+    vim.o.background = (value == "latte") and "light" or "dark"
+
+    local target = "catppuccin-" .. value
+    local ok = pcall(vim.cmd.colorscheme, target)
+    if not ok then
+        pcall(vim.cmd.colorscheme, "catppuccin")
+        pcall(vim.cmd, "Catppuccin " .. value)
+    end
+
+    -- Ensure we end up on the exact flavour, even if another plugin changed colorscheme.
+    if vim.g.colors_name ~= target then
+        pcall(vim.cmd.colorscheme, target)
+    end
+end
+
+local function apply_catppuccin_theme(flavour, opts)
+    opts = opts or {}
+    local value = normalize_catppuccin_flavour(flavour or vim.g.catppuccin_flavour or CATPPUCCIN_DEFAULT_THEME)
     vim.g.catppuccin_flavour = value
 
     local ok_theme, theme_err = pcall(function()
         vim.o.background = (value == "latte") and "light" or "dark"
         if type(_G.__setup_catppuccin_theme) == "function" then
             _G.__setup_catppuccin_theme(value)
+        else
+            local ok_catppuccin, catppuccin = pcall(require, "catppuccin")
+            if ok_catppuccin then
+                catppuccin.setup({ flavour = value, auto_integrations = true })
+            end
         end
+
         if type(_G.__load_catppuccin_flavour) == "function" then
             _G.__load_catppuccin_flavour(value)
         else
-            local ok = pcall(vim.cmd.colorscheme, "catppuccin-" .. value)
-            if not ok then
-                vim.cmd.colorscheme("catppuccin")
-            end
+            load_catppuccin_colorscheme(value)
         end
     end)
     if not ok_theme then
-        vim.notify("Failed to apply Catppuccin flavour: " .. tostring(theme_err), vim.log.levels.ERROR)
+        vim.notify("Failed to apply Catppuccin theme: " .. tostring(theme_err), vim.log.levels.ERROR)
         return
     end
+
+    clear_catppuccin_feline_cache()
 
     if type(_G.__setup_feline_catppuccin) == "function" then
         local ok_feline, feline_err = pcall(_G.__setup_feline_catppuccin, value)
@@ -97,8 +133,12 @@ local function apply_catppuccin_flavour(flavour)
         end
     end
 
-    persist_catppuccin_flavour(value)
-    vim.cmd("redraw")
+    if opts.persist ~= false then
+        persist_catppuccin_flavour(value)
+    end
+
+    vim.cmd("redrawstatus")
+    vim.cmd("redraw!")
 end
 
 local function choose_catppuccin_flavour()
@@ -169,7 +209,7 @@ local function choose_catppuccin_flavour()
             return
         end
         close_picker()
-        apply_catppuccin_flavour(flavour)
+        apply_catppuccin_theme(flavour)
     end
 
     local function select_current_row()
@@ -190,23 +230,31 @@ local function choose_catppuccin_flavour()
         vim.api.nvim_win_set_cursor(win, { new_row, 0 })
     end
 
-    local opts = { buffer = buf, nowait = true, silent = true }
-    vim.keymap.set("n", "q", close_picker, opts)
-    vim.keymap.set("n", "<Esc>", close_picker, opts)
-    vim.keymap.set("n", "<CR>", select_current_row, opts)
-    vim.keymap.set("n", "j", function() move_cursor(1) end, opts)
-    vim.keymap.set("n", "k", function() move_cursor(-1) end, opts)
-    vim.keymap.set("n", "<Down>", function() move_cursor(1) end, opts)
-    vim.keymap.set("n", "<Up>", function() move_cursor(-1) end, opts)
+    local keyopts = { buffer = buf, nowait = true, silent = true }
+    vim.keymap.set("n", "q", close_picker, keyopts)
+    vim.keymap.set("n", "<Esc>", close_picker, keyopts)
+    vim.keymap.set("n", "<CR>", select_current_row, keyopts)
+    vim.keymap.set("n", "j", function() move_cursor(1) end, keyopts)
+    vim.keymap.set("n", "k", function() move_cursor(-1) end, keyopts)
+    vim.keymap.set("n", "<Down>", function() move_cursor(1) end, keyopts)
+    vim.keymap.set("n", "<Up>", function() move_cursor(-1) end, keyopts)
 
     for i = 1, #flavours do
-        vim.keymap.set("n", tostring(i), function() select_index(i) end, opts)
+        vim.keymap.set("n", tostring(i), function() select_index(i) end, keyopts)
     end
 end
 
-vim.g.catppuccin_flavour = normalize_catppuccin_flavour(read_catppuccin_flavour() or vim.g.catppuccin_flavour)
+vim.g.catppuccin_flavour = normalize_catppuccin_flavour(
+    read_catppuccin_flavour() or vim.g.catppuccin_flavour or CATPPUCCIN_DEFAULT_THEME
+)
+
 vim.api.nvim_create_user_command("CatppuccinFlavour", choose_catppuccin_flavour, {
     desc = "Pick Catppuccin flavour",
+})
+vim.api.nvim_create_user_command("CatppuccinMocha", function()
+    apply_catppuccin_theme(CATPPUCCIN_DEFAULT_THEME)
+end, {
+    desc = "Reapply Catppuccin Mocha",
 })
 
 -- lazy.nvim bootstrap
@@ -587,12 +635,13 @@ require("lazy").setup({
         event = { "BufEnter", "WinEnter" },
         config = function()
             _G.__setup_reactive_catppuccin = function(flavour)
+                local value = normalize_catppuccin_flavour(flavour or vim.g.catppuccin_flavour)
                 local ok, reactive = pcall(require, "reactive")
                 if not ok then
                     return
                 end
                 reactive.setup({
-                    load = catppuccin_reactive_load(flavour),
+                    load = catppuccin_reactive_load(value),
                 })
             end
             _G.__setup_reactive_catppuccin(vim.g.catppuccin_flavour)
@@ -603,9 +652,13 @@ require("lazy").setup({
         dependencies = { "catppuccin/nvim", "nvim-tree/nvim-web-devicons" },
         config = function()
             _G.__setup_feline_catppuccin = function(flavour)
-                local value = normalize_catppuccin_flavour(flavour)
+                local value = normalize_catppuccin_flavour(flavour or vim.g.catppuccin_flavour)
                 vim.g.catppuccin_flavour = value
+                clear_catppuccin_feline_cache()
+                clear_feline_cache()
+
                 local feline = require("feline")
+                pcall(feline.reset_highlights)
 
                 -- Prefer the newer official Catppuccin integration path; fallback for older releases.
                 local ok_groups, feline_groups = pcall(require, "catppuccin.groups.integrations.feline")
@@ -613,14 +666,31 @@ require("lazy").setup({
                     feline.setup({
                         components = feline_groups.get(),
                     })
+                    pcall(feline.reset_highlights)
+                    vim.cmd("redrawstatus")
                     return
                 end
 
                 local ok_special, feline_special = pcall(require, "catppuccin.special.feline")
                 if ok_special and type(feline_special.get_statusline) == "function" then
+                    local C = require("catppuccin.palettes").get_palette(value)
+                    if type(feline_special.setup) == "function" then
+                        feline_special.setup({
+                            sett = {
+                                text = (value == "latte") and C.base or C.mantle,
+                                bkg = C.crust,
+                                diffs = C.mauve,
+                                extras = C.overlay1,
+                                curr_file = C.maroon,
+                                curr_dir = C.flamingo,
+                            },
+                        })
+                    end
                     feline.setup({
                         components = feline_special.get_statusline(),
                     })
+                    pcall(feline.reset_highlights)
+                    vim.cmd("redrawstatus")
                 end
             end
             _G.__setup_feline_catppuccin(vim.g.catppuccin_flavour)
@@ -634,19 +704,15 @@ require("lazy").setup({
         config = function(
         )
             _G.__setup_catppuccin_theme = function(flavour)
-                local value = normalize_catppuccin_flavour(flavour)
+                local value = normalize_catppuccin_flavour(flavour or vim.g.catppuccin_flavour)
                 require("catppuccin").setup({
                     flavour = value,
+                    auto_integrations = true,
                 })
             end
             _G.__load_catppuccin_flavour = function(flavour)
-                local value = normalize_catppuccin_flavour(flavour)
-                vim.g.catppuccin_flavour = value
-                vim.o.background = (value == "latte") and "light" or "dark"
-                local ok = pcall(vim.cmd.colorscheme, "catppuccin-" .. value)
-                if not ok then
-                    vim.cmd.colorscheme("catppuccin")
-                end
+                local value = normalize_catppuccin_flavour(flavour or vim.g.catppuccin_flavour)
+                load_catppuccin_colorscheme(value)
             end
             _G.__setup_catppuccin_theme(vim.g.catppuccin_flavour)
             _G.__load_catppuccin_flavour(vim.g.catppuccin_flavour)
