@@ -65,6 +65,21 @@ local function clear_catppuccin_feline_cache()
     package.loaded["catppuccin.special.feline"] = nil
 end
 
+local function clear_catppuccin_reactive_presets()
+    local ok_state, state = pcall(require, "reactive.state")
+    if not ok_state then
+        return
+    end
+
+    for preset_name, _ in pairs(state.presets or {}) do
+        local is_catppuccin_cursor = preset_name:match("^catppuccin%-%a+%-cursor$")
+            or preset_name:match("^catppuccin%-%a+%-cursorline$")
+        if is_catppuccin_cursor then
+            pcall(state.disable_preset, state, preset_name)
+        end
+    end
+end
+
 local function clear_feline_cache()
     for name, _ in pairs(package.loaded) do
         if name:match("^feline") then
@@ -640,9 +655,19 @@ require("lazy").setup({
                 if not ok then
                     return
                 end
+                local presets = catppuccin_reactive_load(value)
+                clear_catppuccin_reactive_presets()
                 reactive.setup({
-                    load = catppuccin_reactive_load(value),
+                    load = presets,
                 })
+                local ok_state, state = pcall(require, "reactive.state")
+                if ok_state then
+                    for _, preset_name in ipairs(presets) do
+                        if state.presets[preset_name] and state.disabled_presets[preset_name] then
+                            pcall(state.enable_preset, state, preset_name)
+                        end
+                    end
+                end
             end
             _G.__setup_reactive_catppuccin(vim.g.catppuccin_flavour)
         end,
