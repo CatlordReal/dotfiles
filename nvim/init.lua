@@ -423,7 +423,7 @@ require("lazy").setup({
             { "<leader>sb",      function() Snacks.picker.lines() end,                                   desc = "Buffer Lines" },
             { "<leader>sc",      function() Snacks.picker.command_history() end,                         desc = "Command History" },
             { "<leader>sC",      function() Snacks.picker.commands() end,                                desc = "Commands" },
-            { "<leader>sd",      function() Snacks.picker.diagnostics() end,                             desc = "Diagnostics" },
+            { "<leader>sd",      open_buffer_diagnostics_qf,                                              desc = "Diagnostics List" },
             { "<leader>sD",      function() Snacks.picker.diagnostics_buffer() end,                      desc = "Buffer Diagnostics" },
             { "<leader>sh",      function() Snacks.picker.help() end,                                    desc = "Help Pages" },
             { "<leader>sH",      function() Snacks.picker.highlights() end,                              desc = "Highlights" },
@@ -1312,6 +1312,21 @@ local function diagnostics_to_qf_items(bufnr)
 end
 
 local function open_buffer_diagnostics_qf()
+    local qf_open = false
+    for _, win in ipairs(vim.fn.getwininfo()) do
+        if win.quickfix == 1 and win.loclist == 0 then
+            qf_open = true
+            break
+        end
+    end
+    if qf_open then
+        local qf_state = vim.fn.getqflist({ context = 1 })
+        if qf_state.context and qf_state.context.kind == "buffer_diagnostics" then
+            vim.cmd("cclose")
+            return
+        end
+    end
+
     local bufnr = vim.api.nvim_get_current_buf()
     local items = diagnostics_to_qf_items(bufnr)
     vim.fn.setqflist({}, " ", {
