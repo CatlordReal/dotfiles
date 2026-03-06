@@ -269,15 +269,15 @@ vim.api.nvim_create_user_command("CatppuccinFlavour", choose_catppuccin_flavour,
 
 
 vim.diagnostic.config({
-  virtual_text = {
-    severity = { min = vim.diagnostic.severity.WARN },
-  },
-  underline = {
-    severity = { min = vim.diagnostic.severity.WARN },
-  },
-  signs = {
-    severity = { min = vim.diagnostic.severity.WARN },
-  },
+    virtual_text = {
+        severity = { min = vim.diagnostic.severity.WARN },
+    },
+    underline = {
+        severity = { min = vim.diagnostic.severity.WARN },
+    },
+    signs = {
+        severity = { min = vim.diagnostic.severity.WARN },
+    },
 })
 vim.api.nvim_create_user_command("CatppuccinMocha", function()
     apply_catppuccin_theme(CATPPUCCIN_DEFAULT_THEME)
@@ -751,7 +751,13 @@ require("lazy").setup({
     {
         "folke/flash.nvim",
         event = "VeryLazy",
-        opts = {},
+        opts = {
+            modes = {
+                char = {
+                    enabled = false,
+                },
+            },
+        },
     },
     {
         "rasulomaroff/reactive.nvim",
