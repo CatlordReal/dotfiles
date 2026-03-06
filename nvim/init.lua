@@ -287,6 +287,21 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
+    -- dropbar
+    {
+        'Bekaboo/dropbar.nvim',
+        -- optional, but required for fuzzy finder support
+        dependencies = {
+            'nvim-telescope/telescope-fzf-native.nvim',
+            build = 'make'
+        },
+        config = function()
+            local dropbar_api = require('dropbar.api')
+            vim.keymap.set('n', '<Leader>;', dropbar_api.pick, { desc = 'Pick symbols in winbar' })
+            vim.keymap.set('n', '[;', dropbar_api.goto_context_start, { desc = 'Go to start of current context' })
+            vim.keymap.set('n', '];', dropbar_api.select_next_context, { desc = 'Select next context' })
+        end
+    },
     -- mini files
     {
         "echasnovski/mini.files",
@@ -423,7 +438,7 @@ require("lazy").setup({
             { "<leader>sb",      function() Snacks.picker.lines() end,                                   desc = "Buffer Lines" },
             { "<leader>sc",      function() Snacks.picker.command_history() end,                         desc = "Command History" },
             { "<leader>sC",      function() Snacks.picker.commands() end,                                desc = "Commands" },
-            { "<leader>sd",      open_buffer_diagnostics_qf,                                              desc = "Diagnostics List" },
+            { "<leader>sd",      open_buffer_diagnostics_qf,                                             desc = "Diagnostics List" },
             { "<leader>sD",      function() Snacks.picker.diagnostics_buffer() end,                      desc = "Buffer Diagnostics" },
             { "<leader>sh",      function() Snacks.picker.help() end,                                    desc = "Help Pages" },
             { "<leader>sH",      function() Snacks.picker.highlights() end,                              desc = "Highlights" },
@@ -438,7 +453,7 @@ require("lazy").setup({
             { "<leader>sR",      function() Snacks.picker.resume() end,                                  desc = "Resume" },
             { "<leader>su",      function() Snacks.picker.undo() end,                                    desc = "Undo History" },
             { "<leader>uC",      function() Snacks.picker.colorschemes() end,                            desc = "Colorschemes" },
-            { "<leader>cc",      choose_catppuccin_flavour,                                               desc = "Choose Catppuccin Flavour" },
+            { "<leader>cc",      choose_catppuccin_flavour,                                              desc = "Choose Catppuccin Flavour" },
             -- LSP
             { "gd",              function() Snacks.picker.lsp_definitions() end,                         desc = "Goto Definition" },
             { "gD",              function() Snacks.picker.lsp_declarations() end,                        desc = "Goto Declaration" },
@@ -1758,7 +1773,7 @@ wkr.add({
     -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
     -- Open
     { "<leader>o",  group = "Open" },
-    { "<leader>of", reveal_in_finder,                                          desc = "Reveal in Finder" },
+    { "<leader>of", reveal_in_finder,                                         desc = "Reveal in Finder" },
     -- Find
     { "<leader>f",  group = "Find" },
     { "<leader>ff", function() require("telescope.builtin").find_files() end, desc = "Find Files" },
@@ -1881,9 +1896,9 @@ wkr.add({
         function() dbui_open_sqlite({ fullscreen = true, wipe_buf = true, buf = vim.api.nvim_get_current_buf() }) end,
         desc = "Open DBUI (Fullscreen)"
     },
-    { "<leader>qc", "<cmd>DBUIClose<CR>",                                          desc = "Close DBUI" },
-    { "<leader>qr", "<cmd>DBUIRename<CR>",                                         desc = "Rename Connection" },
-    { "<leader>qs", "<cmd>DBUISaveQuery<CR>",                                      desc = "Save Query" },
+    { "<leader>qc", "<cmd>DBUIClose<CR>",     desc = "Close DBUI" },
+    { "<leader>qr", "<cmd>DBUIRename<CR>",    desc = "Rename Connection" },
+    { "<leader>qs", "<cmd>DBUISaveQuery<CR>", desc = "Save Query" },
     {
         "<leader>qf",
         function()
