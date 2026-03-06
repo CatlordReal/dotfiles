@@ -287,6 +287,31 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
+    -- mini.animate (cursor animations)
+    {
+        "echasnovski/mini.animate",
+        version = "*",
+        config = function()
+            local animate = require("mini.animate")
+            animate.setup({
+                -- Smooth scrolling (Much more stable than neoscroll)
+                scroll = {
+                    enable = true,
+                    -- timing = animate.gen_timing.linear({ duration = 150, unit = "total" }),
+                },
+                -- Subtle cursor trail for jumps (like using <leader>be)
+                cursor = {
+                    enable = true,
+                    timing = animate.gen_timing.linear({ duration = 100, unit = "total" }),
+                },
+                -- Disable these to keep the UI snappy
+                resize = { enable = false },
+                open = { enable = false },
+                close = { enable = false },
+            })
+        end,
+    },
+
     -- surround-ui (ui for surround)
     {
         "roobert/surround-ui.nvim",
