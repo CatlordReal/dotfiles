@@ -287,6 +287,37 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
+    -- TODO: Put all mini things in one mini.nvim block
+
+    -- mini.jump2d (jumping further than s binding can)
+    {
+        "echasnovski/mini.jump2d",
+        version = "*",
+        config = function()
+            local jump2d = require("mini.jump2d")
+            jump2d.setup({
+                -- This binds it to your Enter key in Normal mode
+                mappings = {
+                    start_jumping = "<CR>",
+                },
+                view = {
+                    -- Fades out the rest of the code so the labels pop
+                    dim = true,
+                    -- Use the 'n' style labels (letters) for the fastest jumping
+                    n_steps_ahead = 2,
+                },
+                -- This makes it jump to the START of words (perfect for code)
+                allowed_lines = { blank = false },
+                hooks = {
+                    after_jump = function()
+                        -- Optional: Pulse the cursor after jumping so you don't lose it
+                        vim.cmd("normal! zvzz")
+                    end,
+                },
+            })
+        end,
+    },
+
     -- mini.animate (cursor animations)
     {
         "echasnovski/mini.animate",
