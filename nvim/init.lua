@@ -266,6 +266,19 @@ vim.g.catppuccin_flavour = normalize_catppuccin_flavour(
 vim.api.nvim_create_user_command("CatppuccinFlavour", choose_catppuccin_flavour, {
     desc = "Pick Catppuccin flavour",
 })
+
+
+vim.diagnostic.config({
+  virtual_text = {
+    severity = { min = vim.diagnostic.severity.WARN },
+  },
+  underline = {
+    severity = { min = vim.diagnostic.severity.WARN },
+  },
+  signs = {
+    severity = { min = vim.diagnostic.severity.WARN },
+  },
+})
 vim.api.nvim_create_user_command("CatppuccinMocha", function()
     apply_catppuccin_theme(CATPPUCCIN_DEFAULT_THEME)
 end, {
