@@ -287,6 +287,30 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
+    -- surround-ui (ui for surround)
+    {
+        "roobert/surround-ui.nvim",
+        dependencies = {
+            "kylechui/nvim-surround",
+            "folke/which-key.nvim",
+        },
+        config = function()
+            require("surround-ui").setup({
+                root_key = "S"
+            })
+        end,
+    },
+    -- spider (camelCase and other word nav improvements for default vi bindings)
+    {
+        "chrisgrieser/nvim-spider",
+        lazy = true,
+        keys = {
+            { "w", "<cmd>lua require('spider').motion('w')<CR>", mode = { "n", "o", "x" }, desc = "Spider-w" },
+            { "e", "<cmd>lua require('spider').motion('e')<CR>", mode = { "n", "o", "x" }, desc = "Spider-e" },
+            { "b", "<cmd>lua require('spider').motion('b')<CR>", mode = { "n", "o", "x" }, desc = "Spider-b" },
+        },
+    },
+
     -- dropbar
     {
         'Bekaboo/dropbar.nvim',
@@ -824,13 +848,38 @@ require("lazy").setup({
         config = function()
             require("bufferline").setup({
                 options = {
-                    -- Show buffers rather than tabs in the bufferline
                     mode = "buffers",
+                    style_preset = require("bufferline").style_preset.default,
+                    separator_style = "slant",
+                    indicator = {
+                        icon = "▎",
+                        style = "underline",
+                    },
+                    hover = {
+                        enabled = true,
+                        delay = 200,
+                        reveal = { "close" },
+                    },
+                    offsets = {
+                        {
+                            filetype = "neo-tree",
+                            text = "File Explorer",
+                            text_align = "left",
+                            separator = true,
+                        },
+                    },
                     diagnostics = "nvim_lsp",
                     diagnostics_indicator = function(count, level)
                         local icon = level:match("error") and " " or " "
                         return " " .. icon .. count
                     end,
+                    -- Picking and Pinning support
+                    show_buffer_icons = true,
+                    show_buffer_close_icons = true,
+                    show_close_icon = false,
+                    persist_buffer_sort = true,
+                    enforce_regular_tabs = false,
+                    always_show_bufferline = true,
                 },
             })
         end,
@@ -2216,3 +2265,8 @@ vim.keymap.set("n", "<leader>nt", function()
         mf.open()
     end
 end, { desc = "Toggle mini.files" })
+
+
+vim.keymap.set("n", "<leader>bi", "<Cmd>BufferLineTogglePin<CR>", { desc = "Pin/Unpin Buffer" })
+vim.keymap.set("n", "<leader>be", "<Cmd>BufferLinePick<CR>", { desc = "Pick Buffer (Jump)" })
+vim.keymap.set("n", "<leader>bC", "<Cmd>BufferLinePickClose<CR>", { desc = "Pick Buffer to Close" })
