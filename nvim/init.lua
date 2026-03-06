@@ -16,6 +16,7 @@ vim.opt.winblend = 0
 vim.opt.pumblend = 0
 vim.opt.cursorlineopt = "number"
 vim.o.winborder = "rounded"
+vim.opt.virtualedit = ""
 
 local CATPPUCCIN_DEFAULT_THEME = "mocha"
 local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
@@ -337,25 +338,32 @@ require("lazy").setup({
         version = "*",
         config = function()
             local animate = require("mini.animate")
+
             animate.setup({
-                -- Smooth scrolling (Much more stable than neoscroll)
                 scroll = {
                     enable = true,
-                    -- timing = animate.gen_timing.linear({ duration = 150, unit = "total" }),
+                    timing = animate.gen_timing.linear({ duration = 150, unit = "total" }),
+                    subscroll = animate.gen_subscroll.equal({
+                        predicate = function(total_scroll)
+                            return total_scroll <= 20
+                        end,
+                    }),
                 },
-                -- Subtle cursor trail for jumps (like using <leader>be)
                 cursor = {
                     enable = true,
                     timing = animate.gen_timing.linear({ duration = 100, unit = "total" }),
+                    path = animate.gen_path.line({
+                        predicate = function(destination)
+                            return math.abs(destination[1]) <= 25 and math.abs(destination[2]) <= 80
+                        end,
+                    }),
                 },
-                -- Disable these to keep the UI snappy
                 resize = { enable = false },
                 open = { enable = false },
                 close = { enable = false },
             })
         end,
     },
-
     -- surround-ui (ui for surround)
     {
         "roobert/surround-ui.nvim",
@@ -478,7 +486,7 @@ require("lazy").setup({
             },
             quickfile = { enabled = true },
             scope = { enabled = true },
-            scroll = { enabled = true },
+            scroll = { enabled = false },
             statuscolumn = { enabled = true },
             words = { enabled = true },
             styles = {
@@ -1184,32 +1192,52 @@ require("lazy").setup({
                 fps = 60,
                 top_down = false,
             })
+
             require("noice").setup({
                 lsp = { progress = { enabled = true } },
+                cmdline = {
+                    format = {
+                        search_down = { kind = "search", pattern = "^/", icon = " ", lang = "" },
+                        search_up = { kind = "search", pattern = "^%?", icon = " ", lang = "" },
+                    },
+                },
                 views = {
                     popup = {
                         border = { style = "rounded" },
                         win_options = {
                             winblend = 0,
-                            winhighlight = "Normal:NoicePopup,FloatBorder:NoicePopupBorder",
+                            winhighlight = {
+                                Normal = "NoicePopup",
+                                FloatBorder = "NoicePopupBorder",
+                            },
                         },
                     },
                     cmdline_popup = {
                         border = { style = "rounded" },
                         win_options = {
                             winblend = 0,
-                            winhighlight = "Normal:NoiceCmdlinePopup,FloatBorder:NoiceCmdlinePopupBorder",
+                            winhighlight = {
+                                Normal = "NoiceCmdlinePopup",
+                                FloatBorder = "NoiceCmdlinePopupBorder",
+                                Search = "None",
+                                CurSearch = "None",
+                                IncSearch = "None",
+                            },
                         },
                     },
                     popupmenu = {
                         border = { style = "rounded" },
                         win_options = {
                             winblend = 0,
-                            winhighlight = "Normal:NoicePopupmenu,FloatBorder:NoicePopupmenuBorder",
+                            winhighlight = {
+                                Normal = "NoicePopupmenu",
+                                FloatBorder = "NoicePopupmenuBorder",
+                            },
                         },
                     },
                 },
             })
+
             vim.notify = require("notify")
         end,
     },
@@ -1420,7 +1448,9 @@ end
 
 local function diagnostics_to_qf_items(bufnr)
     local items = {}
-    local diagnostics = vim.diagnostic.get(bufnr)
+    local diagnostics = vim.diagnostic.get(bufnr, {
+        severity = { min = vim.diagnostic.severity.WARN },
+    })
     for _, d in ipairs(diagnostics) do
         local item = {
             bufnr = bufnr,
