@@ -17,6 +17,8 @@ vim.opt.pumblend = 0
 vim.opt.cursorlineopt = "number"
 vim.o.winborder = "rounded"
 vim.opt.virtualedit = ""
+vim.opt.shortmess:append("I")
+
 
 local CATPPUCCIN_DEFAULT_THEME = "mocha"
 local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
