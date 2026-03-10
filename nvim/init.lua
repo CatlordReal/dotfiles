@@ -19,6 +19,13 @@ vim.o.winborder = "rounded"
 vim.opt.virtualedit = ""
 vim.opt.shortmess:append("I")
 
+vim.filetype.add({
+    extension = {
+        axaml = "xml",
+        xaml = "xml",
+    },
+})
+
 
 local CATPPUCCIN_DEFAULT_THEME = "mocha"
 local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
@@ -353,7 +360,7 @@ require("lazy").setup({
                 },
                 cursor = {
                     enable = true,
-                    timing = animate.gen_timing.linear({ duration = 100, unit = "total" }),
+                    timing = animate.gen_timing.linear({ duration = 75, unit = "total" }),
                     path = animate.gen_path.line({
                         predicate = function(destination)
                             return math.abs(destination[1]) <= 25 and math.abs(destination[2]) <= 80
@@ -411,24 +418,25 @@ require("lazy").setup({
         dependencies = { "nvim-mini/mini.icons" },
         config = function()
             require("mini.files").setup({
-                -- show preview of file/directory under cursor
                 windows = {
                     width = 40,
                     preview = true,
                     width_preview = 80,
                 },
-                content = {
-                },
+                content = {},
                 mappings = {
-                    -- close explorer
                     close = "<Esc>",
-                    -- go into directory / open file
                     go_in = "<CR>",
-                    -- go up
                     go_out = "<BS>",
-                    -- show help
                     show_help = "g?",
                 },
+            })
+
+            vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "minifiles", "oil" },
+                callback = function(args)
+                    vim.b[args.buf].minianimate_disable = true
+                end,
             })
         end,
     },
@@ -471,7 +479,7 @@ require("lazy").setup({
                     { section = "startup" },
                 },
             },
-            explorer = { enabled = true },
+            explorer = { enabled = false },
             indent = { enabled = true },
             input = { enabled = true },
             notifier = {
@@ -653,24 +661,6 @@ require("lazy").setup({
     },
     -- File explorer
 
-    {
-        "nvim-neo-tree/neo-tree.nvim",
-        branch = "main",
-        dependencies = {
-            "nvim-lua/plenary.nvim",
-            "nvim-tree/nvim-web-devicons",
-        },
-        config = function()
-            require("neo-tree").setup({
-                popup_border_style = "rounded",
-                window = {
-                    popup = {
-                        border = "rounded",
-                    },
-                },
-            })
-        end,
-    },
     -- {
     --     "nvim-tree/nvim-tree.lua",
     --     dependencies = { "nvim-tree/nvim-web-devicons" },
@@ -825,6 +815,14 @@ require("lazy").setup({
                     local C = require("catppuccin.palettes").get_palette(value)
                     if type(feline_special.setup) == "function" then
                         feline_special.setup({
+                            assets = {
+                                lsp = {
+                                    error = "",
+                                    warning = "",
+                                    info = "",
+                                    hint = "󰌵",
+                                },
+                            },
                             sett = {
                                 text = (value == "latte") and C.base or C.mantle,
                                 bkg = C.crust,
@@ -835,8 +833,22 @@ require("lazy").setup({
                             },
                         })
                     end
+                    local statusline_components = feline_special.get_statusline()
+                    if statusline_components
+                        and statusline_components.active
+                        and statusline_components.active[2]
+                    then
+                        local diagnostics_section = statusline_components.active[2]
+                        -- Keep statusline diagnostics aligned with visible diagnostics (WARN+).
+                        if diagnostics_section[4] then
+                            diagnostics_section[4].enabled = function() return false end
+                        end
+                        if diagnostics_section[5] then
+                            diagnostics_section[5].enabled = function() return false end
+                        end
+                    end
                     feline.setup({
-                        components = feline_special.get_statusline(),
+                        components = statusline_components,
                     })
                     pcall(feline.reset_highlights)
                     vim.cmd("redrawstatus")
@@ -910,6 +922,7 @@ require("lazy").setup({
                 "swift",
                 "objc",
                 "json",
+                "xml",
                 "markdown",
                 "bash",
                 "python",
@@ -1033,7 +1046,43 @@ require("lazy").setup({
         end,
     },
     { "nvim-mini/mini.icons",    config = function() require("mini.icons").setup() end },
-    { "stevearc/oil.nvim",       opts = { view_options = { show_hidden = true } } },
+    {
+        "stevearc/conform.nvim",
+        opts = {
+            formatters_by_ft = {
+                lua = { "stylua" },
+                python = { "ruff_format" },
+                javascript = { "prettier" },
+                typescript = { "prettier" },
+                html = { "prettier" },
+                css = { "prettier" },
+                json = { "prettier" },
+                markdown = { "prettier" },
+            },
+            format_on_save = false,
+            default_format_opts = {
+                lsp_format = "fallback",
+            },
+        },
+    },
+    {
+        "MagicDuck/grug-far.nvim",
+        config = function()
+            require("grug-far").setup({})
+        end,
+    },
+    {
+        "stevearc/oil.nvim",
+        opts = {
+            default_file_explorer = true,
+            view_options = { show_hidden = true },
+        },
+    },
+    {
+        "seblyng/roslyn.nvim",
+        ft = "cs",
+        opts = {},
+    },
     { "lewis6991/gitsigns.nvim", config = function() require("gitsigns").setup() end },
     { "numToStr/Comment.nvim",   config = function() require("Comment").setup() end },
     { "windwp/nvim-autopairs",   config = function() require("nvim-autopairs").setup() end },
@@ -1067,6 +1116,33 @@ require("lazy").setup({
                     breadcrumb = "»",
                     separator = "➜",
                     group = "+",
+                    mappings = true,
+                    rules = {
+                        { pattern = "xcode", icon = " ", color = "blue" },
+                        { pattern = "harpoon", icon = "󱡀 ", color = "cyan" },
+                        { pattern = "database", icon = "󰆼 ", color = "blue" },
+                        { pattern = "markdown", icon = " ", color = "blue" },
+                        { pattern = "persistence", icon = " ", color = "azure" },
+                        { pattern = "rename", icon = "󰑕 ", color = "orange" },
+                        { pattern = "reference", icon = "󰈇 ", color = "blue" },
+                        { pattern = "definition", icon = "󰊕 ", color = "blue" },
+                        { pattern = "implementation", icon = "󰡱 ", color = "blue" },
+                        { pattern = "diagnostic", icon = "󱖫 ", color = "yellow" },
+                        { pattern = "quick fix", icon = " ", color = "orange" },
+                        { pattern = "toggle", icon = " ", color = "yellow" },
+                        { pattern = "open", icon = " ", color = "cyan" },
+                        { pattern = "close", icon = " ", color = "red" },
+                        { pattern = "next", icon = " ", color = "green" },
+                        { pattern = "prev", icon = " ", color = "green" },
+                        { pattern = "build", icon = "󰙨 ", color = "green" },
+                        { pattern = "run", icon = "󰑮 ", color = "green" },
+                        { pattern = "test", icon = " ", color = "green" },
+                        { pattern = "fold", icon = "󰘖 ", color = "yellow" },
+                        { pattern = "query", icon = "󰆼 ", color = "blue" },
+                        { pattern = "terminal", icon = " ", color = "red" },
+                        { pattern = "notification", icon = "󰵅 ", color = "blue" },
+                        { pattern = "jump", icon = "󰆿 ", color = "green" },
+                    },
                 },
             })
         end,
@@ -1085,7 +1161,7 @@ require("lazy").setup({
         dependencies = { "neovim/nvim-lspconfig" },
         config = function()
             require("mason-lspconfig").setup({
-                ensure_installed = { "lua_ls", "clangd", "omnisharp", "pyright" },
+                ensure_installed = { "lua_ls", "clangd", "pyright", "html", "lemminx" },
             })
         end,
     },
@@ -1408,7 +1484,7 @@ vim.diagnostic.config({
         source = "if_many",
         spacing = 2,
     },
-    signs = true,
+    signs = { severity = { min = vim.diagnostic.severity.WARN } },
     underline = { severity = { min = vim.diagnostic.severity.WARN } },
     severity_sort = true,
     update_in_insert = false,
@@ -1418,7 +1494,6 @@ vim.diagnostic.config({
     },
 })
 
-local pid = vim.fn.getpid()
 local lsp_util = require("lspconfig.util")
 
 local ignored_diag_items = {}
@@ -1636,9 +1711,13 @@ vim.lsp.config["pyright"] = {
         },
     },
 }
-vim.lsp.config["omnisharp"] = {
+vim.lsp.config["html"] = {
     capabilities = cmp_caps,
-    cmd = { "omnisharp", "--languageserver", "--hostPID", tostring(pid) },
+    filetypes = { "html" },
+}
+vim.lsp.config["lemminx"] = {
+    capabilities = cmp_caps,
+    filetypes = { "xml", "xsd", "xsl", "xslt", "svg" },
 }
 vim.lsp.config["sourcekit"] = {
     capabilities = cmp_caps,
@@ -1646,7 +1725,95 @@ vim.lsp.config["sourcekit"] = {
     root_dir = lsp_util.root_pattern("Package.swift", ".git", "*.xcodeproj", "*.xcworkspace"),
 }
 
-vim.lsp.enable({ "lua_ls", "clangd", "omnisharp", "pyright", "sourcekit" })
+vim.lsp.enable({ "lua_ls", "clangd", "pyright", "sourcekit", "html", "lemminx" })
+
+local function format_axaml_buffer(bufnr)
+    if vim.bo[bufnr].filetype ~= "xml" then
+        return false
+    end
+
+    local name = vim.api.nvim_buf_get_name(bufnr)
+    if not name:match("%.axaml$") and not name:match("%.xaml$") then
+        return false
+    end
+
+    local lemminx_clients = vim.lsp.get_clients({ bufnr = bufnr, name = "lemminx" })
+    for _, client in ipairs(lemminx_clients) do
+        if client.supports_method and client:supports_method("textDocument/formatting") then
+            vim.lsp.buf.format({
+                bufnr = bufnr,
+                async = false,
+                timeout_ms = 2000,
+                filter = function(c)
+                    return c.id == client.id
+                end,
+            })
+            return true
+        end
+    end
+
+    if vim.fn.executable("xmllint") ~= 1 then
+        return false
+    end
+
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local input = table.concat(lines, "\n")
+    local output = ""
+    local shift = vim.bo[bufnr].shiftwidth
+    local indent = string.rep(" ", shift > 0 and shift or 4)
+
+    if vim.system then
+        local result = vim.system(
+            { "xmllint", "--format", "-" },
+            {
+                text = true,
+                stdin = input,
+                env = vim.tbl_extend("force", vim.fn.environ(), { XMLLINT_INDENT = indent }),
+            }
+        ):wait()
+        if result.code ~= 0 or type(result.stdout) ~= "string" or result.stdout == "" then
+            return false
+        end
+        output = result.stdout
+    else
+        local old_indent = vim.env.XMLLINT_INDENT
+        vim.env.XMLLINT_INDENT = indent
+        output = vim.fn.system({ "xmllint", "--format", "-" }, input)
+        vim.env.XMLLINT_INDENT = old_indent
+        if vim.v.shell_error ~= 0 or type(output) ~= "string" or output == "" then
+            return false
+        end
+    end
+
+    local view = vim.fn.winsaveview()
+    local formatted = vim.split(output, "\n", { plain = true })
+
+    if formatted[#formatted] == "" then
+        table.remove(formatted, #formatted)
+    end
+
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, formatted)
+    vim.fn.winrestview(view)
+
+    return true
+end
+
+local function format_current_buffer(opts)
+    local bufnr = (opts and opts.bufnr) or vim.api.nvim_get_current_buf()
+    if format_axaml_buffer(bufnr) then
+        return
+    end
+    require("conform").format({
+        bufnr = bufnr,
+        async = (opts and opts.async) or false,
+        lsp_format = "fallback",
+    })
+end
+
+local function xml_smart_newline()
+    -- Reindent the new line according to xml indentexpr after newline insert.
+    return "<CR><C-o>=="
+end
 
 local function find_xcode_container()
     local cwd = vim.fn.getcwd()
@@ -1727,13 +1894,6 @@ vim.api.nvim_create_user_command("XcodeBuildIPad", xcode_build_ipad, {})
 vim.api.nvim_create_user_command("XcodeTestIPad", xcode_test_ipad, {})
 vim.api.nvim_create_user_command("XcodeBuildMac", xcode_build_macos, {})
 vim.api.nvim_create_user_command("XcodeTestMac", xcode_test_macos, {})
-
-vim.api.nvim_create_autocmd("BufWritePre", {
-    pattern = "*.py",
-    callback = function()
-        vim.lsp.buf.format({ async = false })
-    end,
-})
 
 -- Keymaps with descriptions to populate which-key
 -- File explorers
@@ -1822,8 +1982,21 @@ vim.keymap.set("n", "<leader>zy", function()
 end, { desc = "Copy Diagnostics" })
 
 -- Formatting
-vim.keymap.set("n", "<leader>fa", function() vim.lsp.buf.format({ async = true }) end,
-    { silent = true, desc = "Format Buffer" })
+vim.keymap.set("n", "<leader>fa", function()
+    format_current_buffer({ async = true })
+end, { silent = true, desc = "Format Buffer" })
+
+vim.keymap.set("n", "<leader>fm", function()
+    format_current_buffer({ async = true })
+end, { desc = "Format Buffer" })
+
+vim.keymap.set("n", "<leader>sr", function()
+    require("grug-far").open()
+end, { desc = "Search and Replace" })
+
+vim.keymap.set("v", "<leader>sr", function()
+    require("grug-far").with_visual_selection()
+end, { desc = "Search and Replace Selection" })
 
 -- Database keymaps
 local function dbui_open_sqlite(opts)
@@ -1921,30 +2094,47 @@ local wk = require("which-key")
 wkr = require("which-key") -- alias for clarity in modifications
 wkr.add({
     -- File explorer
-    { "<leader>e",  function() require("oil").open() end,                     desc = "File Explorer (Oil)" },
+    { "<leader>e",  function() require("oil").open() end,                     desc = "File Explorer (Oil)", icon = { icon = " ", color = "cyan" } },
+    { "<leader>;",  function() require("dropbar.api").pick() end,             desc = "Pick symbols in winbar", icon = { icon = "󰉺 ", color = "blue" } },
+    { "<leader>nt", function()
+        local mf = require("mini.files")
+        if mf.get_explorer_state() ~= nil then
+            mf.close()
+        else
+            mf.open(vim.fn.getcwd(), true)
+        end
+    end, desc = "Toggle mini.files", icon = { icon = "󰉓 ", color = "cyan" } },
     -- Colors
-    { "<leader>c",  group = "Colors" },
+    { "<leader>c",  group = "Colors",                                           icon = { icon = " ", color = "purple" } },
     { "<leader>cc", choose_catppuccin_flavour,                                desc = "Choose Catppuccin Flavour" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
     -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
+    { "<leader>n",  group = "Notifications",                                    icon = { icon = "󰵅 ", color = "blue" } },
+    { "<leader>t",  group = "Tasks/Terminal",                                   icon = { icon = " ", color = "yellow" } },
+    { "<leader>u",  group = "UI/Toggles",                                       icon = { icon = " ", color = "yellow" } },
     -- Open
-    { "<leader>o",  group = "Open" },
+    { "<leader>o",  group = "Open",                                             icon = { icon = " ", color = "cyan" } },
     { "<leader>of", reveal_in_finder,                                         desc = "Reveal in Finder" },
     -- Find
-    { "<leader>f",  group = "Find" },
+    { "<leader>f",  group = "Find",                                             icon = { icon = " ", color = "green" } },
     { "<leader>ff", function() require("telescope.builtin").find_files() end, desc = "Find Files" },
     { "<leader>fg", function() require("telescope.builtin").live_grep() end,  desc = "Grep Text" },
     { "<leader>fb", function() require("telescope.builtin").buffers() end,    desc = "Find Buffers" },
     { "<leader>fh", function() require("telescope.builtin").help_tags() end,  desc = "Help Tags" },
+    { "<leader>fm", function()
+        format_current_buffer({ async = true })
+    end, desc = "Format Buffer" },
     { "<leader>fd", "<cmd>Telescope diagnostics<CR>",                         desc = "Diagnostics" },
     { "<leader>ft", "<cmd>TodoTelescope<CR>",                                 desc = "TODOs" },
     -- LSP
-    { "<leader>s",  group = "LSP" },
+    { "<leader>s",  group = "LSP",                                              icon = { icon = " ", color = "blue" } },
     { "<leader>sg", vim.lsp.buf.definition,                                   desc = "Go to Definition" },
     { "<leader>si", vim.lsp.buf.implementation,                               desc = "Go to Implementation" },
     { "<leader>sR", vim.lsp.buf.references,                                   desc = "References" },
     { "<leader>sK", vim.lsp.buf.hover,                                        desc = "Hover Info" },
-    { "<leader>sr", vim.lsp.buf.rename,                                       desc = "Rename Symbol" },
+    { "<leader>sr", function()
+        require("grug-far").open()
+    end, desc = "Search and Replace" },
     { "<leader>sa", function() require("actions-preview").code_actions() end, desc = "Code Action" },
     { "<leader>sd", open_buffer_diagnostics_qf,                               desc = "Diagnostics List" },
     { "<leader>sI", open_ignored_diagnostics_qf,                              desc = "Ignored Diagnostics" },
@@ -1952,11 +2142,13 @@ wkr.add({
     { "<leader>sl", "<cmd>Lspsaga show_line_diagnostics<CR>",                 desc = "Line Diagnostics" },
     { "<leader>ca", "<cmd>Lspsaga code_action<CR>",                           desc = "Code Action (Saga)" },
     { "<leader>sf", "<cmd>Lspsaga finder<CR>",                                desc = "LSP Finder" },
-    { "<leader>fa", function() vim.lsp.buf.format({ async = true }) end,      desc = "Format Buffer" },
+    { "<leader>fa", function()
+        format_current_buffer({ async = true })
+    end, desc = "Format Buffer" },
     -- Quick rename symbol
     { "<leader>rn", vim.lsp.buf.rename,                                       desc = "Rename Symbol" },
     -- Git
-    { "<leader>g",  group = "Git" },
+    { "<leader>g",  group = "Git",                                              icon = { icon = " ", color = "orange" } },
     { "<leader>gs", function() require("gitsigns").stage_hunk() end,          desc = "Stage Hunk" },
     { "<leader>gu", function() require("gitsigns").undo_stage_hunk() end,     desc = "Undo Stage" },
     { "<leader>gr", function() require("gitsigns").reset_hunk() end,          desc = "Reset Hunk" },
@@ -1964,7 +2156,7 @@ wkr.add({
     { "<leader>gb", function() require("gitsigns").blame_line() end,          desc = "Blame Line" },
     { "<leader>gd", function() require("gitsigns").diffthis() end,            desc = "Diff File" },
     -- Window
-    { "<leader>w",  group = "Window" },
+    { "<leader>w",  group = "Window",                                           icon = { icon = " ", color = "blue" } },
     { "<leader>ww", "<C-w>w",                                                 desc = "Next Window" },
     { "<leader>wh", "<C-w>h",                                                 desc = "Left Window" },
     { "<leader>wj", "<C-w>j",                                                 desc = "Down Window" },
@@ -1980,24 +2172,24 @@ wkr.add({
     { "<leader>w-", "<C-w>-",                                                 desc = "Decrease window height" },
     { "<leader>w+", "<C-w>+",                                                 desc = "Increase window height" },
     -- Buffers (use <leader>b prefix to avoid conflicts with neotest)
-    { "<leader>b",  group = "Buffers" },
+    { "<leader>b",  group = "Buffers",                                          icon = { icon = "󰈔 ", color = "cyan" } },
     { "<leader>bn", "<cmd>bnext<CR>",                                         desc = "Next Buffer" },
     { "<leader>bp", "<cmd>bprevious<CR>",                                     desc = "Prev Buffer" },
     { "<leader>bo", "<cmd>enew<CR>",                                          desc = "New Buffer" },
     { "<leader>bc", "<cmd>bdelete<CR>",                                       desc = "Close Buffer" },
     -- Later additions
-    { "<leader>j",  group = "Jump" },
+    { "<leader>j",  group = "Jump",                                             icon = { icon = "󰆿 ", color = "green" } },
     { "<leader>jb", desc = "Jump Back" },
     { "<leader>jf", desc = "Jump Forward" },
-    { "<leader>s",  group = "LSP" },
+    { "<leader>s",  group = "LSP",                                              icon = { icon = " ", color = "blue" } },
     { "<leader>sq", desc = "Quick Fix (LSP)" },
     { "<leader>sc", desc = "Incoming Calls" },
     { "<leader>sC", desc = "Outgoing Calls" },
-    { "<leader>b",  group = "Buffers" },
+    { "<leader>b",  group = "Buffers",                                          icon = { icon = "󰈔 ", color = "cyan" } },
     { "<leader>bv", desc = "Vertical split with other buffer" },
     { "<leader>bh", desc = "Horizontal split with other buffer" },
     -- Harpoon bookmarks
-    { "<leader>h",  group = "Harpoon" },
+    { "<leader>h",  group = "Harpoon",                                          icon = { icon = "󱡀 ", color = "cyan" } },
     { "<leader>ha", function() require("harpoon"):list():add() end,           desc = "Harpoon Add File" },
     {
         "<leader>hm",
@@ -2009,7 +2201,7 @@ wkr.add({
     { "<leader>h3", function() require("harpoon"):list():select(3) end, desc = "Harpoon Select 3" },
     { "<leader>h4", function() require("harpoon"):list():select(4) end, desc = "Harpoon Select 4" },
     -- Tasks & Terminals
-    { "<leader>x",  group = "Tasks/Term" },
+    { "<leader>x",  group = "Tasks/Term",                                       icon = { icon = " ", color = "yellow" } },
     { "<leader>xt", "<cmd>OverseerToggle<CR>",                          desc = "Tasks Panel" },
     { "<leader>xr", "<cmd>OverseerRun<CR>",                             desc = "Run Task" },
     { "<leader>xv", "<cmd>ToggleTerm<CR>",                              desc = "Terminal" },
@@ -2019,8 +2211,11 @@ wkr.add({
     { "<leader>xP", xcode_test_ipad,                                    desc = "Xcode Test iPadOS" },
     { "<leader>xm", xcode_build_macos,                                  desc = "Xcode Build macOS" },
     { "<leader>xM", xcode_test_macos,                                   desc = "Xcode Test macOS" },
+    { "<leader>tt", "<cmd>OverseerToggle<cr>",                          desc = "Tasks Panel" },
+    { "<leader>tr", "<cmd>OverseerRun<cr>",                             desc = "Run Task" },
+    { "<leader>tv", "<cmd>ToggleTerm<cr>",                              desc = "Terminal" },
     -- Run group (code runner)
-    { "<leader>r",  group = "Run" },
+    { "<leader>r",  group = "Run",                                              icon = { icon = "󰑮 ", color = "green" } },
     { "<leader>rr", ":RunCode<CR>",                                     desc = "Run Code" },
     { "<leader>rf", ":RunFile<CR>",                                     desc = "Run File" },
     { "<leader>rp", ":RunProject<CR>",                                  desc = "Run Project" },
@@ -2039,13 +2234,13 @@ wkr.add({
         desc = "Inline Variable"
     },
     -- Tests
-    { "<leader>T",  group = "Tests" },
+    { "<leader>T",  group = "Tests",                                            icon = { icon = " ", color = "green" } },
     { "<leader>tn", function() require("neotest").run.run() end,                   desc = "Run nearest test" },
     { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end, desc = "Run file tests" },
     { "<leader>to", function() require("neotest").output.open() end,               desc = "Test Output" },
     { "<leader>ts", function() require("neotest").summary.toggle() end,            desc = "Test Summary" },
     -- Database
-    { "<leader>q",  group = "Database" },
+    { "<leader>q",  group = "Database",                                         icon = { icon = "󰆼 ", color = "blue" } },
     { "<leader>qo", "<cmd>DBUI<CR>",                                               desc = "Open DBUI" },
     {
         "<leader>qO",
@@ -2068,20 +2263,20 @@ wkr.add({
         desc = "Open SQLite File"
     },
     -- Markdown
-    { "<leader>m",  group = "Markdown" },
+    { "<leader>m",  group = "Markdown",                                         icon = { icon = " ", color = "blue" } },
     { "<leader>mp", "<cmd>MarkdownPreviewToggle<CR>",                  desc = "MD Preview" },
     -- Folding
     { "zR",         function() require("ufo").openAllFolds() end,      desc = "Open all folds" },
     { "zM",         function() require("ufo").closeAllFolds() end,     desc = "Close all folds" },
     -- Debug
-    { "<leader>d",  group = "Debug" },
+    { "<leader>d",  group = "Debug",                                            icon = { icon = " ", color = "red" } },
     { "<leader>db", function() require("dap").toggle_breakpoint() end, desc = "Toggle Breakpoint" },
     { "<leader>dc", function() require("dap").continue() end,          desc = "Continue Debug" },
     { "<leader>do", function() require("dap").step_over() end,         desc = "Step Over" },
     { "<leader>di", function() require("dap").step_into() end,         desc = "Step Into" },
     { "<leader>dO", function() require("dap").step_out() end,          desc = "Step Out" },
     -- Utilities
-    { "<leader>z",  group = "Folds" },
+    { "<leader>z",  group = "Folds",                                            icon = { icon = "󰘖 ", color = "yellow" } },
     { "z<leader>a", desc = "Toggle Fold" },
     { "<leader>zo", desc = "Open Fold" },
     { "<leader>zc", desc = "Close Fold" },
@@ -2105,7 +2300,7 @@ wkr.add({
         desc = "Copy Diagnostics"
     },
     -- Persistence session shortcuts
-    { "<leader>p",  group = "Persistence" },
+    { "<leader>p",  group = "Persistence",                                      icon = { icon = " ", color = "azure" } },
     { "<leader>ps", "<cmd>lua require('persistence').load()<cr>",                desc = "Load Session" },
     { "<leader>pl", "<cmd>lua require('persistence').load({ last = true })<cr>", desc = "Load Last Session" },
     { "<leader>pd", "<cmd>lua require('persistence').stop()<cr>",                desc = "Stop Persistence" },
@@ -2113,8 +2308,21 @@ wkr.add({
     -- { "<leader>nn",  group = "Notifications" },
     -- { "<leader>nn", "<cmd>Notifications<CR>",                                    desc = "Show Notifications" },
     { "<leader>no", "<cmd>noh<CR>",                                              desc = "Hide Finds" },
+    { "<leader>ud", desc = "Toggle Diagnostics" },
+    { "<leader>ul", desc = "Toggle Line Numbers" },
+    { "<leader>uL", desc = "Toggle Relative Number" },
+    { "<leader>us", desc = "Toggle Spelling" },
+    { "<leader>uw", desc = "Toggle Wrap" },
+    { "<leader>uc", desc = "Toggle Conceal" },
+    { "<leader>uT", desc = "Toggle Treesitter" },
+    { "<leader>ub", desc = "Toggle Background" },
+    { "<leader>uh", desc = "Toggle Inlay Hints" },
+    { "<leader>ug", desc = "Toggle Indent Guides" },
+    { "<leader>uD", desc = "Toggle Dim" },
+    { "<leader>un", desc = "Dismiss Notifications" },
+    { "<leader>uC", desc = "Choose Colorscheme" },
     -- Misc
-    { "s",          group = "Flash" },
+    { "s",          group = "Flash",                                            icon = { icon = " ", color = "yellow" } },
     { "]d",         desc = "Next Diagnostic" },
     { "[d",         desc = "Prev Diagnostic" },
     { "za",         desc = "Toggle Fold" },
@@ -2167,6 +2375,21 @@ vim.api.nvim_create_autocmd("FileType", {
             vim.bo.softtabstop = 4
             vim.bo.expandtab = true
         end
+    end,
+})
+
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = "xml",
+    callback = function(ev)
+        vim.bo[ev.buf].autoindent = true
+        vim.bo[ev.buf].smartindent = false
+        vim.bo[ev.buf].cindent = false
+        vim.keymap.set("i", "<CR>", xml_smart_newline, {
+            buffer = ev.buf,
+            expr = true,
+            silent = true,
+            replace_keycodes = true,
+        })
     end,
 })
 -- vim.keymap.set("n", "<leader>nn", "<cmd>Notifications<CR>", { desc = "Show Notifications" })
@@ -2369,9 +2592,27 @@ vim.keymap.set("n", "<leader>nt", function()
     if mf.get_explorer_state() ~= nil then
         mf.close()
     else
-        mf.open()
+        mf.open(vim.fn.getcwd(), true)
     end
 end, { desc = "Toggle mini.files" })
+
+vim.api.nvim_create_autocmd("VimEnter", {
+    callback = function()
+        if vim.fn.argc() ~= 1 then
+            return
+        end
+
+        local arg = vim.fn.argv(0)
+        if vim.fn.isdirectory(arg) ~= 1 then
+            return
+        end
+
+        vim.schedule(function()
+            pcall(vim.cmd, "silent! bwipeout 1")
+            require("oil").open(arg)
+        end)
+    end,
+})
 
 
 vim.keymap.set("n", "<leader>bi", "<Cmd>BufferLineTogglePin<CR>", { desc = "Pin/Unpin Buffer" })
