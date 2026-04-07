@@ -280,7 +280,7 @@ vim.api.nvim_create_user_command("CatppuccinFlavour", choose_catppuccin_flavour,
 
 vim.diagnostic.config({
     virtual_text = {
-        severity = { min = vim.diagnostic.severity.WARN },
+        severity = { min = vim.diagnostic.severity.ERROR },
     },
     underline = {
         severity = { min = vim.diagnostic.severity.WARN },
@@ -349,15 +349,15 @@ require("lazy").setup({
             local animate = require("mini.animate")
 
             animate.setup({
-                scroll = {
-                    enable = true,
-                    timing = animate.gen_timing.linear({ duration = 150, unit = "total" }),
-                    subscroll = animate.gen_subscroll.equal({
-                        predicate = function(total_scroll)
-                            return total_scroll <= 20
-                        end,
-                    }),
-                },
+                -- scroll = {
+                --   enable = true,
+                --   timing = animate.gen_timing.linear({ duration = 150, unit = "total" }),
+                --   subscroll = animate.gen_subscroll.equal({
+                --       predicate = function(total_scroll)
+                --           return total_scroll <= 20
+                --       end,
+                --   }),
+              -- },
                 cursor = {
                     enable = true,
                     timing = animate.gen_timing.linear({ duration = 75, unit = "total" }),
@@ -386,17 +386,6 @@ require("lazy").setup({
             })
         end,
     },
-    -- spider (camelCase and other word nav improvements for default vi bindings)
-    {
-        "chrisgrieser/nvim-spider",
-        lazy = true,
-        keys = {
-            { "w", "<cmd>lua require('spider').motion('w')<CR>", mode = { "n", "o", "x" }, desc = "Spider-w" },
-            { "e", "<cmd>lua require('spider').motion('e')<CR>", mode = { "n", "o", "x" }, desc = "Spider-e" },
-            { "b", "<cmd>lua require('spider').motion('b')<CR>", mode = { "n", "o", "x" }, desc = "Spider-b" },
-        },
-    },
-
     -- dropbar
     {
         'Bekaboo/dropbar.nvim',
@@ -656,6 +645,70 @@ require("lazy").setup({
             "mfussenegger/nvim-dap",
         },
         config = function()
+            local cached_easy_dotnet_version = nil
+
+            local function get_easy_dotnet_cli_version()
+                if cached_easy_dotnet_version then
+                    return cached_easy_dotnet_version
+                end
+
+                local version = vim.trim(vim.fn.system({ "dotnet", "easydotnet", "-v" }))
+                if vim.v.shell_error == 0 and version ~= "" then
+                    cached_easy_dotnet_version = version
+                    return version
+                end
+
+                cached_easy_dotnet_version = "2.0.0"
+                return cached_easy_dotnet_version
+            end
+
+            local rpc_client = require("easy-dotnet.rpc.dotnet-client")
+            local current_solution = require("easy-dotnet.current_solution")
+
+            rpc_client._initialize = function(self, cb, opts)
+                opts = opts or {}
+                coroutine.wrap(function()
+                    local easy_opts = require("easy-dotnet.options").options
+                    local use_visual_studio = easy_opts.server.use_visual_studio == true
+                    local debugger_path = easy_opts.debugger.bin_path
+                    local apply_value_converters = easy_opts.debugger.apply_value_converters
+                    local debugger_options = {
+                        applyValueConverters = apply_value_converters,
+                        binaryPath = debugger_path,
+                    }
+
+                    current_solution.get_or_pick_solution(function(sln_file)
+                        rpc_client.create_rpc_call({
+                            client = self._client,
+                            job = {
+                                name = "Initializing...",
+                                on_success_text = "Client initialized",
+                                on_error_text = "Failed to initialize server",
+                            },
+                            cb = cb,
+                            on_crash = opts.on_crash,
+                            method = "initialize",
+                            params = {
+                                request = {
+                                    clientInfo = {
+                                        name = "EasyDotnet",
+                                        version = get_easy_dotnet_cli_version(),
+                                    },
+                                    projectInfo = {
+                                        rootDir = vim.fs.normalize(vim.fn.getcwd()),
+                                        solutionFile = sln_file,
+                                    },
+                                    options = {
+                                        useVisualStudio = use_visual_studio,
+                                        debuggerOptions = debugger_options,
+                                    },
+                                },
+                            },
+                        })()
+                    end)
+                end)()
+            end
+
             require("easy-dotnet").setup()
         end,
     },
@@ -1178,6 +1231,7 @@ require("lazy").setup({
         },
         config = function()
             local cmp = require("cmp")
+            local cmp_types = require("cmp.types")
             require("luasnip.loaders.from_vscode").lazy_load()
             local cmp_window_hl = "Normal:NormalFloat,FloatBorder:FloatBorder,CursorLine:PmenuSel,Search:None"
             cmp.setup({
@@ -1201,11 +1255,50 @@ require("lazy").setup({
                     ["<S-Tab>"] = cmp.mapping.select_prev_item(),
                     ["<CR>"] = cmp.mapping.confirm({ select = true }),
                 }),
+                sorting = {
+                    priority_weight = 2,
+                    comparators = {
+                        function(entry1, entry2)
+                            local snippet_kind = cmp_types.lsp.CompletionItemKind.Snippet
+                            local entry1_is_snippet = entry1:get_kind() == snippet_kind
+                            local entry2_is_snippet = entry2:get_kind() == snippet_kind
+                            if entry1_is_snippet ~= entry2_is_snippet then
+                                return entry1_is_snippet
+                            end
+                        end,
+                        cmp.config.compare.offset,
+                        cmp.config.compare.exact,
+                        cmp.config.compare.score,
+                        cmp.config.compare.recently_used,
+                        cmp.config.compare.locality,
+                        cmp.config.compare.kind,
+                        cmp.config.compare.sort_text,
+                        cmp.config.compare.length,
+                        cmp.config.compare.order,
+                    },
+                },
                 sources = cmp.config.sources({
-                    { name = "nvim_lsp" },
-                    { name = "luasnip" },
-                    { name = "path" },
-                    { name = "buffer" },
+                    {
+                        name = "luasnip",
+                        group_index = 1,
+                    },
+                    {
+                        name = "nvim_lsp",
+                        group_index = 1,
+                        entry_filter = function(entry)
+                            -- Hide plain-text items from LSP to avoid duplicate keyword noise.
+                            return entry:get_kind() ~= cmp_types.lsp.CompletionItemKind.Text
+                        end,
+                    },
+                    {
+                        name = "path",
+                        group_index = 2,
+                    },
+                    {
+                        name = "buffer",
+                        group_index = 2,
+                        keyword_length = 3,
+                    },
                 }),
             })
         end,
@@ -1480,7 +1573,7 @@ local cmp_caps = require("cmp_nvim_lsp").default_capabilities()
 
 vim.diagnostic.config({
     virtual_text = {
-        severity = { min = vim.diagnostic.severity.WARN },
+        severity = { min = vim.diagnostic.severity.ERROR },
         source = "if_many",
         spacing = 2,
     },
@@ -1497,6 +1590,9 @@ vim.diagnostic.config({
 local lsp_util = require("lspconfig.util")
 
 local ignored_diag_items = {}
+local original_diagnostic_get = vim.diagnostic.get
+local original_diagnostic_show = vim.diagnostic.show
+local original_diagnostic_hide = vim.diagnostic.hide
 
 local function diag_type_from_severity(severity)
     if severity == vim.diagnostic.severity.ERROR then
@@ -1511,21 +1607,131 @@ local function diag_type_from_severity(severity)
     return "N"
 end
 
-local function diag_key(item)
+local function diag_key_parts(bufnr, lnum, col, end_lnum, end_col, diag_type, text)
     return table.concat({
-        tostring(item.bufnr or 0),
-        tostring(item.lnum or 0),
-        tostring(item.col or 0),
-        tostring(item.end_lnum or 0),
-        tostring(item.end_col or 0),
-        tostring(item.type or ""),
-        tostring(item.text or ""),
+        tostring(bufnr or 0),
+        tostring(lnum or 0),
+        tostring(col or 0),
+        tostring(end_lnum or 0),
+        tostring(end_col or 0),
+        tostring(diag_type or ""),
+        tostring(text or ""),
     }, "|")
+end
+
+local function diag_key(item)
+    return diag_key_parts(
+        item.bufnr or 0,
+        item.lnum or 0,
+        item.col or 0,
+        item.end_lnum or 0,
+        item.end_col or 0,
+        item.type or "",
+        item.text or ""
+    )
+end
+
+local function diag_key_from_diagnostic(bufnr, diagnostic)
+    return diag_key_parts(
+        bufnr,
+        (diagnostic.lnum or 0) + 1,
+        (diagnostic.col or 0) + 1,
+        diagnostic.end_lnum and (diagnostic.end_lnum + 1) or 0,
+        diagnostic.end_col and (diagnostic.end_col + 1) or 0,
+        diag_type_from_severity(diagnostic.severity),
+        diagnostic.message or ""
+    )
+end
+
+local function filter_ignored_diagnostics(bufnr, diagnostics)
+    if not diagnostics or vim.tbl_isempty(diagnostics) then
+        return diagnostics
+    end
+
+    local filtered = {}
+    for _, diagnostic in ipairs(diagnostics) do
+        local key = diag_key_from_diagnostic(bufnr, diagnostic)
+        local message = (diagnostic.message or ""):lower()
+        local auto_ignored = message:match("make.-class.-static") ~= nil
+        if not ignored_diag_items[key] and not auto_ignored then
+            table.insert(filtered, diagnostic)
+        end
+    end
+    return filtered
+end
+
+local function get_visible_diagnostics(bufnr, opts)
+    local diagnostics = original_diagnostic_get(bufnr, opts)
+    if not diagnostics or vim.tbl_isempty(diagnostics) then
+        return diagnostics
+    end
+
+    local filtered = filter_ignored_diagnostics(bufnr, diagnostics)
+    local seen = {}
+    local deduped = {}
+    for _, diagnostic in ipairs(filtered) do
+        local key = diag_key_from_diagnostic(bufnr, diagnostic)
+        if not seen[key] then
+            seen[key] = true
+            table.insert(deduped, diagnostic)
+        end
+    end
+    return deduped
+end
+
+local function refresh_buffer_diagnostics(bufnr)
+    if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+        local visible = get_visible_diagnostics(bufnr)
+        local by_namespace = {}
+        for _, diagnostic in ipairs(visible) do
+            local namespace = diagnostic.namespace
+            if namespace then
+                by_namespace[namespace] = by_namespace[namespace] or {}
+                table.insert(by_namespace[namespace], diagnostic)
+            end
+        end
+
+        original_diagnostic_hide(nil, bufnr)
+        for namespace, diagnostics in pairs(by_namespace) do
+            original_diagnostic_show(namespace, bufnr, diagnostics)
+        end
+        vim.cmd("redrawstatus")
+    end
+end
+
+vim.diagnostic.get = function(bufnr, opts)
+    local resolved_bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+    return get_visible_diagnostics(resolved_bufnr, opts)
+end
+
+vim.diagnostic.show = function(namespace, bufnr, diagnostics, opts)
+    if namespace ~= nil and bufnr ~= nil then
+        local resolved_bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+        if diagnostics then
+            diagnostics = get_visible_diagnostics(resolved_bufnr, { namespace = namespace })
+        else
+            diagnostics = get_visible_diagnostics(resolved_bufnr, { namespace = namespace })
+        end
+        return original_diagnostic_show(namespace, resolved_bufnr, diagnostics, opts)
+    end
+
+    return original_diagnostic_show(namespace, bufnr, diagnostics, opts)
+end
+
+local ok_feline_lsp, feline_lsp = pcall(require, "feline.providers.lsp")
+if ok_feline_lsp then
+    feline_lsp.get_diagnostics_count = function(severity)
+        return vim.tbl_count(get_visible_diagnostics(0, severity and { severity = severity } or nil))
+    end
+
+    feline_lsp.diagnostics_exist = function(severity)
+        return feline_lsp.get_diagnostics_count(severity) > 0
+    end
 end
 
 local function diagnostics_to_qf_items(bufnr)
     local items = {}
-    local diagnostics = vim.diagnostic.get(bufnr, {
+    local diagnostics = get_visible_diagnostics(bufnr, {
         severity = { min = vim.diagnostic.severity.WARN },
     })
     for _, d in ipairs(diagnostics) do
@@ -1540,9 +1746,7 @@ local function diagnostics_to_qf_items(bufnr)
         }
         local key = diag_key(item)
         item.user_data = { diag_key = key }
-        if not ignored_diag_items[key] then
-            table.insert(items, item)
-        end
+        table.insert(items, item)
     end
 
     table.sort(items, function(a, b)
@@ -1587,6 +1791,21 @@ local function open_buffer_diagnostics_qf()
 end
 
 local function open_ignored_diagnostics_qf()
+    local qf_open = false
+    for _, win in ipairs(vim.fn.getwininfo()) do
+        if win.quickfix == 1 and win.loclist == 0 then
+            qf_open = true
+            break
+        end
+    end
+    if qf_open then
+        local qf_state = vim.fn.getqflist({ context = 1 })
+        if qf_state.context and qf_state.context.kind == "ignored_diagnostics" then
+            vim.cmd("cclose")
+            return
+        end
+    end
+
     local items = {}
     for _, item in pairs(ignored_diag_items) do
         table.insert(items, item)
@@ -1625,6 +1844,48 @@ local function qf_selected_range(from_visual)
     return row, row
 end
 
+local function qf_is_diagnostics_context(context)
+    return context and (context.kind == "buffer_diagnostics" or context.kind == "ignored_diagnostics")
+end
+
+local function qf_jump_to_selected()
+    local idx = vim.api.nvim_win_get_cursor(0)[1]
+    local qf = vim.fn.getqflist({ items = 1 })
+    if not qf.items[idx] then
+        vim.notify("No diagnostic selected", vim.log.levels.WARN)
+        return false
+    end
+    vim.cmd("cc " .. idx)
+    return true
+end
+
+local function qf_show_selected_diagnostic()
+    if not qf_jump_to_selected() then
+        return
+    end
+
+    vim.schedule(function()
+        vim.diagnostic.open_float(nil, {
+            scope = "line",
+            focus = false,
+            border = "rounded",
+            source = "if_many",
+        })
+    end)
+end
+
+local function qf_show_selected_quickfixes()
+    if not qf_jump_to_selected() then
+        return
+    end
+
+    vim.schedule(function()
+        vim.lsp.buf.code_action({
+            context = { only = { "quickfix" } },
+        })
+    end)
+end
+
 local function qf_ignore_selected(from_visual)
     local qf = vim.fn.getqflist({ items = 1, context = 1, title = 1 })
     if not (qf.context and qf.context.kind == "buffer_diagnostics") then
@@ -1651,6 +1912,7 @@ local function qf_ignore_selected(from_visual)
         context = qf.context,
     })
     vim.cmd("copen")
+    refresh_buffer_diagnostics(qf.context.bufnr)
     vim.notify("Ignored " .. removed .. " diagnostic(s)", vim.log.levels.INFO)
 end
 
@@ -1663,11 +1925,13 @@ local function qf_unignore_selected(from_visual)
 
     local start_row, end_row = qf_selected_range(from_visual)
     local kept, restored = {}, 0
+    local refresh_bufnrs = {}
     for i, item in ipairs(qf.items) do
         local key = (item.user_data and item.user_data.diag_key) or diag_key(item)
         if i >= start_row and i <= end_row then
             ignored_diag_items[key] = nil
             restored = restored + 1
+            refresh_bufnrs[item.bufnr] = true
         else
             table.insert(kept, item)
         end
@@ -1679,17 +1943,36 @@ local function qf_unignore_selected(from_visual)
         context = qf.context,
     })
     vim.cmd("copen")
+    for bufnr in pairs(refresh_bufnrs) do
+        refresh_buffer_diagnostics(bufnr)
+    end
     vim.notify("Restored " .. restored .. " diagnostic(s)", vim.log.levels.INFO)
+end
+
+local function qf_delete_selected(from_visual)
+    local qf = vim.fn.getqflist({ context = 1 })
+    if qf.context and qf.context.kind == "ignored_diagnostics" then
+        qf_unignore_selected(from_visual)
+    else
+        qf_ignore_selected(from_visual)
+    end
 end
 
 vim.api.nvim_create_autocmd("FileType", {
     pattern = "qf",
     callback = function(args)
         local opts = { buffer = args.buf, silent = true }
-        vim.keymap.set("n", "d", function() qf_ignore_selected(false) end, opts)
-        vim.keymap.set("x", "d", function() qf_ignore_selected(true) end, opts)
+        vim.keymap.set("n", "d", function() qf_delete_selected(false) end, opts)
+        vim.keymap.set("n", "dd", function() qf_delete_selected(false) end, opts)
+        vim.keymap.set("x", "d", function() qf_delete_selected(true) end, opts)
         vim.keymap.set("n", "u", function() qf_unignore_selected(false) end, opts)
         vim.keymap.set("x", "u", function() qf_unignore_selected(true) end, opts)
+
+        local qf = vim.fn.getqflist({ context = 1 })
+        if qf_is_diagnostics_context(qf.context) then
+            vim.keymap.set("n", "<CR>", qf_show_selected_diagnostic, opts)
+            vim.keymap.set("n", "f", qf_show_selected_quickfixes, opts)
+        end
     end,
 })
 
@@ -1815,6 +2098,201 @@ local function xml_smart_newline()
     return "<CR><C-o>=="
 end
 
+local c_smart_brace_retry = {}
+local c_smart_semicolon_retry = {}
+local c_signature_blocklist = {
+    ["if"] = true,
+    ["for"] = true,
+    ["while"] = true,
+    ["switch"] = true,
+    ["return"] = true,
+    ["sizeof"] = true,
+}
+
+local function undo_seq_cur()
+    local tree = vim.fn.undotree()
+    return tonumber(tree.seq_cur) or 0
+end
+
+local function c_identifier_before(line, pos)
+    local prefix = line:sub(1, pos - 1):gsub("%s+$", "")
+    return prefix:match("([%a_][%w_]*)$")
+end
+
+local function c_matching_open_bracket(ch)
+    if ch == ")" then
+        return "("
+    end
+    if ch == "]" then
+        return "["
+    end
+    if ch == "}" then
+        return "{"
+    end
+    return nil
+end
+
+local function c_unclosed_bracket_stack(line, col)
+    local stack = {}
+    local in_quote = nil
+    local escaped = false
+
+    for i = 1, col do
+        local ch = line:sub(i, i)
+        if in_quote then
+            if escaped then
+                escaped = false
+            elseif ch == "\\" then
+                escaped = true
+            elseif ch == in_quote then
+                in_quote = nil
+            end
+        else
+            if ch == '"' or ch == "'" then
+                in_quote = ch
+            elseif ch == "(" or ch == "[" or ch == "{" then
+                table.insert(stack, { char = ch, col = i })
+            elseif ch == ")" or ch == "]" or ch == "}" then
+                local top = stack[#stack]
+                if top
+                    and ((ch == ")" and top.char == "(")
+                        or (ch == "]" and top.char == "[")
+                        or (ch == "}" and top.char == "{"))
+                then
+                    table.remove(stack)
+                end
+            end
+        end
+    end
+
+    return stack
+end
+
+local function is_c_function_parameter_context(line, col)
+    if line:sub(col + 1, col + 1) ~= ")" then
+        return false
+    end
+
+    local prefix = line:sub(1, col)
+    if not prefix:match("%([^%(]*$") then
+        return false
+    end
+
+    local before_paren = prefix:match("^(.*)%([^%(]*$")
+    if not before_paren then
+        return false
+    end
+
+    before_paren = before_paren:gsub("%s+$", "")
+    if before_paren == "" or before_paren:match("[%]=;]$") then
+        return false
+    end
+
+    local name = before_paren:match("([%a_][%w_]*)$")
+    if not name or c_signature_blocklist[name] then
+        return false
+    end
+
+    local before_name = before_paren:sub(1, #before_paren - #name)
+    return before_name:match("%S") ~= nil
+end
+
+local function c_smart_open_brace()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local line = vim.api.nvim_get_current_line()
+    local _, col = unpack(vim.api.nvim_win_get_cursor(0))
+    local npairs = require("nvim-autopairs")
+    local inline_brace = npairs.autopairs_map(bufnr, "{")
+
+    local retry = c_smart_brace_retry[bufnr]
+    if retry then
+        c_smart_brace_retry[bufnr] = nil
+        if retry.undo_seq == undo_seq_cur() and retry.line == line and retry.col == col then
+            return inline_brace
+        end
+    end
+
+    if not is_c_function_parameter_context(line, col) then
+        return inline_brace
+    end
+
+    c_smart_brace_retry[bufnr] = {
+        undo_seq = undo_seq_cur(),
+        line = line,
+        col = col,
+    }
+
+    local after_paren = line:sub(col + 2, col + 2)
+    local spacer = after_paren:match("%s") and "" or " "
+
+    return vim.api.nvim_replace_termcodes("<Right>", true, false, true) .. spacer .. inline_brace
+end
+
+local function c_smart_semicolon()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local line = vim.api.nvim_get_current_line()
+    local _, col = unpack(vim.api.nvim_win_get_cursor(0))
+
+    local retry = c_smart_semicolon_retry[bufnr]
+    if retry then
+        c_smart_semicolon_retry[bufnr] = nil
+        if retry.undo_seq == undo_seq_cur() and retry.line == line and retry.col == col then
+            return ";"
+        end
+    end
+
+    local remainder = line:sub(col + 1)
+    local stack = c_unclosed_bracket_stack(line, col)
+    local skip_count = 0
+
+    while true do
+        local next_char = remainder:sub(skip_count + 1, skip_count + 1)
+        if next_char == "" then
+            break
+        end
+
+        if next_char == '"' or next_char == "'" then
+            skip_count = skip_count + 1
+        else
+            local expected_open = c_matching_open_bracket(next_char)
+            local top = stack[#stack]
+            if not (expected_open and top and top.char == expected_open) then
+                break
+            end
+
+            if top.char == "(" and c_identifier_before(line, top.col) == "for" then
+                break
+            end
+
+            table.remove(stack)
+            skip_count = skip_count + 1
+        end
+    end
+
+    if skip_count == 0 then
+        return ";"
+    end
+
+    c_smart_semicolon_retry[bufnr] = {
+        undo_seq = undo_seq_cur(),
+        line = line,
+        col = col,
+    }
+
+    local move_right = vim.api.nvim_replace_termcodes("<Right>", true, false, true)
+    return string.rep(move_right, skip_count) .. ";"
+end
+
+local function set_buffer_insert_expr_callback(bufnr, lhs, callback, desc)
+    vim.api.nvim_buf_set_keymap(bufnr, "i", lhs, "", {
+        callback = callback,
+        expr = true,
+        noremap = true,
+        silent = true,
+        desc = desc,
+    })
+end
+
 local function find_xcode_container()
     local cwd = vim.fn.getcwd()
     local workspace = vim.fs.find(function(name)
@@ -1920,7 +2398,51 @@ vim.keymap.set("n", "gr", vim.lsp.buf.references, { silent = true, desc = "Refer
 vim.keymap.set("n", "gi", vim.lsp.buf.implementation, { silent = true, desc = "Go to Implementation" })
 -- Use lspsaga for hover documentation. The built-in hover mapping is removed to avoid conflicts
 -- vim.keymap.set("n", "K", vim.lsp.buf.hover, { silent = true, desc = "Hover Info" })
-vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, { silent = true, desc = "Rename Symbol" })
+local function rename_symbol()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local filetype = vim.bo[bufnr].filetype
+    local method = vim.lsp.protocol.Methods.textDocument_rename
+    local clients = vim.lsp.get_clients({
+        bufnr = bufnr,
+        method = method,
+    })
+
+    if filetype == "cs" or filetype == "razor" then
+        local roslyn_clients = vim.lsp.get_clients({
+            bufnr = bufnr,
+            name = "roslyn",
+            method = method,
+        })
+        if #roslyn_clients > 0 then
+            clients = roslyn_clients
+        end
+    end
+
+    local client = clients[1]
+    if not client then
+        vim.notify("[LSP] Rename, no matching language servers with rename capability.")
+        return
+    end
+
+    vim.ui.input({
+        prompt = "New Name: ",
+        default = vim.fn.expand("<cword>"),
+    }, function(input)
+        if not input or input == "" then
+            return
+        end
+
+        local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+        params.newName = input
+        local handler = client.handlers[method] or vim.lsp.handlers[method]
+
+        client:request(method, params, function(...)
+            handler(...)
+        end, bufnr)
+    end)
+end
+
+vim.keymap.set("n", "<leader>rn", rename_symbol, { silent = true, desc = "Rename Symbol" })
 vim.keymap.set("n", "<leader>sd", open_buffer_diagnostics_qf, { silent = true, desc = "Diagnostics List" })
 vim.keymap.set("n", "<leader>sI", open_ignored_diagnostics_qf, { silent = true, desc = "Ignored Diagnostics" })
 
@@ -2146,7 +2668,7 @@ wkr.add({
         format_current_buffer({ async = true })
     end, desc = "Format Buffer" },
     -- Quick rename symbol
-    { "<leader>rn", vim.lsp.buf.rename,                                       desc = "Rename Symbol" },
+    { "<leader>rn", rename_symbol,                                            desc = "Rename Symbol" },
     -- Git
     { "<leader>g",  group = "Git",                                              icon = { icon = " ", color = "orange" } },
     { "<leader>gs", function() require("gitsigns").stage_hunk() end,          desc = "Stage Hunk" },
@@ -2359,11 +2881,15 @@ vim.api.nvim_create_autocmd("FileType", {
             vim.bo.shiftwidth = 2
             vim.bo.softtabstop = 2
             vim.bo.expandtab = true
+            set_buffer_insert_expr_callback(ev.buf, "{", c_smart_open_brace, "Smart open brace")
+            set_buffer_insert_expr_callback(ev.buf, ";", c_smart_semicolon, "Smart semicolon")
         elseif ft == "cs" then
             vim.bo.tabstop = 4
             vim.bo.shiftwidth = 4
             vim.bo.softtabstop = 4
             vim.bo.expandtab = true
+            set_buffer_insert_expr_callback(ev.buf, "{", c_smart_open_brace, "Smart open brace")
+            set_buffer_insert_expr_callback(ev.buf, ";", c_smart_semicolon, "Smart semicolon")
         elseif ft == "python" then
             vim.bo.tabstop = 4
             vim.bo.shiftwidth = 4
@@ -2587,6 +3113,23 @@ vim.g.lazyvim_starter = false
 vim.ui.input = Snacks.input
 vim.ui.select = Snacks.picker.select
 
+local function close_buffer_force(bufnr)
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+    end
+
+    if vim.bo[bufnr].buftype == "terminal" then
+        vim.cmd("silent! bwipeout! " .. bufnr)
+        return
+    end
+
+    vim.cmd("silent! bdelete " .. bufnr)
+end
+
+local function pick_close_buffer()
+    require("bufferline.pick").choose_then(close_buffer_force)
+end
+
 vim.keymap.set("n", "<leader>nt", function()
     local mf = require("mini.files")
     if mf.get_explorer_state() ~= nil then
@@ -2617,4 +3160,4 @@ vim.api.nvim_create_autocmd("VimEnter", {
 
 vim.keymap.set("n", "<leader>bi", "<Cmd>BufferLineTogglePin<CR>", { desc = "Pin/Unpin Buffer" })
 vim.keymap.set("n", "<leader>be", "<Cmd>BufferLinePick<CR>", { desc = "Pick Buffer (Jump)" })
-vim.keymap.set("n", "<leader>bC", "<Cmd>BufferLinePickClose<CR>", { desc = "Pick Buffer to Close" })
+vim.keymap.set("n", "<leader>bC", pick_close_buffer, { desc = "Pick Buffer to Close" })
