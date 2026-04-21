@@ -26,6 +26,37 @@ vim.filetype.add({
     },
 })
 
+local function prepend_env_path(path)
+    if type(path) ~= "string" or path == "" then
+        return
+    end
+
+    local expanded = vim.fn.expand(path)
+    if expanded == nil or expanded == "" or vim.fn.isdirectory(expanded) ~= 1 then
+        return
+    end
+
+    local current = vim.env.PATH or ""
+    local sep = (vim.uv.os_uname().sysname:lower():find("windows") and ";") or ":"
+    if current == expanded
+        or vim.startswith(current, expanded .. sep)
+        or vim.endswith(current, sep .. expanded)
+        or current:find(sep .. expanded .. sep, 1, true)
+    then
+        return
+    end
+
+    vim.env.PATH = current == "" and expanded or (expanded .. sep .. current)
+end
+
+prepend_env_path("~/.local/bin")
+prepend_env_path("~/.dotnet")
+prepend_env_path("~/.dotnet/tools")
+
+if (vim.env.DOTNET_ROOT == nil or vim.env.DOTNET_ROOT == "") and vim.fn.isdirectory(vim.fn.expand("~/.dotnet")) == 1 then
+    vim.env.DOTNET_ROOT = vim.fn.expand("~/.dotnet")
+end
+
 
 local CATPPUCCIN_DEFAULT_THEME = "mocha"
 local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
@@ -444,6 +475,9 @@ require("lazy").setup({
                     {
                         pane = 2,
                         section = "terminal",
+                        enabled = function()
+                            return vim.fn.executable("colorscript") == 1
+                        end,
                         cmd = "colorscript -e square",
                         height = 5,
                         padding = 1,
@@ -1208,7 +1242,17 @@ require("lazy").setup({
         end,
     },
     { "aznhe21/actions-preview.nvim" },
-    { "williamboman/mason.nvim",     config = function() require("mason").setup() end },
+    {
+        "williamboman/mason.nvim",
+        config = function()
+            require("mason").setup({
+                registries = {
+                    "github:mason-org/mason-registry",
+                    "github:Crashdummyy/mason-registry",
+                },
+            })
+        end,
+    },
     {
         "williamboman/mason-lspconfig.nvim",
         dependencies = { "neovim/nvim-lspconfig" },
@@ -1451,7 +1495,7 @@ require("lazy").setup({
     {
         "iamcco/markdown-preview.nvim",
         cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
-        build = "cd app && yarn install",
+        build = "cd app && npx --yes yarn install",
         ft = { "markdown" },
     },
     -- UFO folding
@@ -1678,6 +1722,85 @@ local function get_visible_diagnostics(bufnr, opts)
     end
     return deduped
 end
+
+local function diagnostic_virtual_text_key(bufnr, diagnostic)
+    return table.concat({
+        tostring(bufnr or 0),
+        tostring(diagnostic.lnum or 0),
+        tostring(diag_type_from_severity(diagnostic.severity)),
+        tostring((diagnostic.message or ""):gsub("%s+", " ")),
+    }, "|")
+end
+
+local function dedupe_virtual_text_diagnostics(bufnr, diagnostics)
+    if not diagnostics or vim.tbl_isempty(diagnostics) then
+        return diagnostics
+    end
+
+    local seen = {}
+    local deduped = {}
+    for _, diagnostic in ipairs(diagnostics) do
+        local key = diagnostic_virtual_text_key(bufnr, diagnostic)
+        if not seen[key] then
+            seen[key] = true
+            table.insert(deduped, diagnostic)
+        end
+    end
+    return deduped
+end
+
+local original_virtual_text_handler = vim.diagnostic.handlers.virtual_text
+local deduped_virtual_text_namespace = vim.api.nvim_create_namespace("deduped_virtual_text_diagnostics")
+local virtual_text_handler_opts = {}
+
+local function resolve_virtual_text_opts(bufnr, opts)
+    if type(opts) == "table" then
+        virtual_text_handler_opts[bufnr] = vim.deepcopy(opts)
+        return opts
+    end
+
+    local cached = virtual_text_handler_opts[bufnr]
+    if type(cached) == "table" then
+        return cached
+    end
+
+    local config = vim.diagnostic.config()
+    if type(config.virtual_text) == "table" then
+        return config.virtual_text
+    end
+
+    return {}
+end
+
+local function refresh_virtual_text(bufnr, opts)
+    local resolved_bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+    if not resolved_bufnr or not vim.api.nvim_buf_is_valid(resolved_bufnr) then
+        return
+    end
+
+    original_virtual_text_handler.hide(deduped_virtual_text_namespace, resolved_bufnr)
+
+    -- Some servers publish identical messages for slightly different spans. Collapse those
+    -- before rendering virtual text so the line only shows one inline diagnostic message.
+    local diagnostics = dedupe_virtual_text_diagnostics(resolved_bufnr, get_visible_diagnostics(resolved_bufnr))
+    if diagnostics and not vim.tbl_isempty(diagnostics) then
+        original_virtual_text_handler.show(
+            deduped_virtual_text_namespace,
+            resolved_bufnr,
+            diagnostics,
+            resolve_virtual_text_opts(resolved_bufnr, opts)
+        )
+    end
+end
+
+vim.diagnostic.handlers.virtual_text = {
+    show = function(_, bufnr, _, opts)
+        refresh_virtual_text(bufnr, opts)
+    end,
+    hide = function(_, bufnr)
+        refresh_virtual_text(bufnr)
+    end,
+}
 
 local function refresh_buffer_diagnostics(bufnr)
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
@@ -2004,11 +2127,28 @@ vim.lsp.config["lemminx"] = {
 }
 vim.lsp.config["sourcekit"] = {
     capabilities = cmp_caps,
-    cmd = { "xcrun", "sourcekit-lsp" },
+    cmd = (vim.fn.executable("xcrun") == 1) and { "xcrun", "sourcekit-lsp" } or { "sourcekit-lsp" },
     root_dir = lsp_util.root_pattern("Package.swift", ".git", "*.xcodeproj", "*.xcworkspace"),
 }
 
-vim.lsp.enable({ "lua_ls", "clangd", "pyright", "sourcekit", "html", "lemminx" })
+local enabled_lsps = { "lua_ls", "clangd", "pyright", "html", "lemminx" }
+if vim.fn.executable("sourcekit-lsp") == 1 then
+    table.insert(enabled_lsps, "sourcekit")
+elseif vim.fn.executable("xcrun") == 1 then
+    local has_sourcekit = false
+    if vim.system then
+        local result = vim.system({ "xcrun", "--find", "sourcekit-lsp" }, { text = true }):wait()
+        has_sourcekit = result.code == 0 and type(result.stdout) == "string" and vim.trim(result.stdout) ~= ""
+    else
+        local output = vim.fn.system({ "xcrun", "--find", "sourcekit-lsp" })
+        has_sourcekit = vim.v.shell_error == 0 and vim.trim(output) ~= ""
+    end
+    if has_sourcekit then
+        table.insert(enabled_lsps, "sourcekit")
+    end
+end
+
+vim.lsp.enable(enabled_lsps)
 
 local function format_axaml_buffer(bufnr)
     if vim.bo[bufnr].filetype ~= "xml" then
@@ -2100,6 +2240,82 @@ end
 
 local c_smart_brace_retry = {}
 local c_smart_semicolon_retry = {}
+local csharp_identifier_cache = {}
+local csharp_dot_targets = {
+    "System",
+    "Collections",
+    "Generic",
+    "Linq",
+    "Text",
+    "Threading",
+    "Tasks",
+    "IO",
+    "Console",
+    "Debug",
+    "Trace",
+    "Math",
+    "Convert",
+    "Environment",
+    "Task",
+    "Enumerable",
+    "DateTime",
+    "TimeSpan",
+    "Guid",
+    "StringBuilder",
+    "File",
+    "Directory",
+    "Path",
+    "Exception",
+    "InvalidOperationException",
+    "ArgumentNullException",
+    "List",
+    "Dictionary",
+    "HashSet",
+    "IEnumerable",
+    "TaskCompletionSource",
+    "CancellationToken",
+    "HttpClient",
+    "JsonSerializer",
+    "Regex",
+    "Uri",
+    "DateOnly",
+    "TimeOnly",
+    "Span",
+    "Memory",
+    "Array",
+    "WriteLine",
+    "Write",
+    "ReadLine",
+    "ToString",
+    "Add",
+    "Remove",
+    "Select",
+    "Where",
+    "Any",
+    "All",
+    "Count",
+    "First",
+    "FirstOrDefault",
+    "Single",
+    "SingleOrDefault",
+    "Last",
+    "LastOrDefault",
+    "Contains",
+    "StartsWith",
+    "EndsWith",
+    "Split",
+    "Join",
+    "Format",
+    "Parse",
+    "TryParse",
+    "Create",
+    "Run",
+    "WhenAll",
+    "WhenAny",
+    "ConfigureAwait",
+    "Append",
+    "AppendLine",
+}
 local c_signature_blocklist = {
     ["if"] = true,
     ["for"] = true,
@@ -2117,6 +2333,221 @@ end
 local function c_identifier_before(line, pos)
     local prefix = line:sub(1, pos - 1):gsub("%s+$", "")
     return prefix:match("([%a_][%w_]*)$")
+end
+
+local function is_csharp_symbol_like_identifier(ident)
+    return ident
+        and ident:match("^[%a_][%w_]*$")
+        and ident:match("%u")
+        and not ident:match("^_+$")
+end
+
+local function should_skip_csharp_dot_autocorrect(ident)
+    return not ident
+        or ident:match("^[a-z][%w_]*$")
+        or ident:match("^_+[a-z][%w_]*$")
+end
+
+local function is_within_one_identifier_edit(a, b)
+    if a == b then
+        return true
+    end
+
+    local len_a = #a
+    local len_b = #b
+    if math.abs(len_a - len_b) > 1 then
+        return false
+    end
+
+    if len_a == len_b then
+        local mismatches = {}
+        for i = 1, len_a do
+            if a:sub(i, i) ~= b:sub(i, i) then
+                mismatches[#mismatches + 1] = i
+                if #mismatches > 2 then
+                    return false
+                end
+            end
+        end
+        if #mismatches == 1 then
+            return true
+        end
+        if #mismatches == 2 then
+            local i, j = mismatches[1], mismatches[2]
+            return a:sub(i, i) == b:sub(j, j) and a:sub(j, j) == b:sub(i, i)
+        end
+        return false
+    end
+
+    local shorter = a
+    local longer = b
+    if len_a > len_b then
+        shorter = b
+        longer = a
+    end
+
+    local i, j = 1, 1
+    local used_skip = false
+    while i <= #shorter and j <= #longer do
+        if shorter:sub(i, i) == longer:sub(j, j) then
+            i = i + 1
+            j = j + 1
+        elseif used_skip then
+            return false
+        else
+            used_skip = true
+            j = j + 1
+        end
+    end
+
+    return true
+end
+
+local function csharp_identifier_distance(a, b)
+    if a == b then
+        return 0
+    end
+
+    local len_a = #a
+    local len_b = #b
+    local prev_prev = {}
+    local prev = {}
+    local curr = {}
+
+    for j = 0, len_b do
+        prev[j] = j
+    end
+
+    for i = 1, len_a do
+        curr[0] = i
+        for j = 1, len_b do
+            local cost = (a:sub(i, i) == b:sub(j, j)) and 0 or 1
+            local deletion = prev[j] + 1
+            local insertion = curr[j - 1] + 1
+            local substitution = prev[j - 1] + cost
+            local best = math.min(deletion, insertion, substitution)
+
+            if i > 1 and j > 1
+                and a:sub(i, i) == b:sub(j - 1, j - 1)
+                and a:sub(i - 1, i - 1) == b:sub(j, j)
+            then
+                best = math.min(best, (prev_prev[j - 2] or math.huge) + 1)
+            end
+
+            curr[j] = best
+        end
+        prev_prev, prev, curr = prev, curr, prev_prev
+    end
+
+    return prev[len_b]
+end
+
+local function csharp_max_identifier_distance(len)
+    if len <= 4 then
+        return 1
+    end
+    if len <= 10 then
+        return 2
+    end
+    return 3
+end
+
+local function collect_csharp_buffer_identifiers(bufnr)
+    if not (vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)) then
+        return {}
+    end
+    if vim.bo[bufnr].filetype ~= "cs" then
+        return {}
+    end
+
+    local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+    local cached = csharp_identifier_cache[bufnr]
+    if cached and cached.tick == tick then
+        return cached.identifiers
+    end
+
+    local identifiers = {}
+    for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+        for ident in line:gmatch("[%a_][%w_]*") do
+            if is_csharp_symbol_like_identifier(ident) then
+                local key = ident:lower()
+                identifiers[key] = identifiers[key] or ident
+            end
+        end
+    end
+
+    csharp_identifier_cache[bufnr] = {
+        tick = tick,
+        identifiers = identifiers,
+    }
+    return identifiers
+end
+
+local function csharp_dot_candidate_map(bufnr)
+    local candidates = {}
+    for _, ident in ipairs(csharp_dot_targets) do
+        candidates[ident:lower()] = ident
+    end
+
+    for _, loaded_buf in ipairs(vim.api.nvim_list_bufs()) do
+        for key, ident in pairs(collect_csharp_buffer_identifiers(loaded_buf)) do
+            candidates[key] = candidates[key] or ident
+        end
+    end
+
+    for key, ident in pairs(collect_csharp_buffer_identifiers(bufnr)) do
+        candidates[key] = ident
+    end
+
+    return candidates
+end
+
+local function csharp_correct_dot_identifier()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local line = vim.api.nvim_get_current_line()
+    local _, col = unpack(vim.api.nvim_win_get_cursor(0))
+    local prefix = line:sub(1, col)
+    local ident = prefix:match("([%a_][%w_]*)$")
+    if should_skip_csharp_dot_autocorrect(ident) then
+        return "."
+    end
+
+    local normalized = ident:lower()
+    local best_match = nil
+    local best_distance = math.huge
+    local max_distance = csharp_max_identifier_distance(#ident)
+
+    for candidate_normalized, candidate in pairs(csharp_dot_candidate_map(bufnr)) do
+        if candidate_normalized == normalized then
+            best_match = candidate
+            best_distance = 0
+            break
+        end
+
+        if candidate_normalized:sub(1, 1) == normalized:sub(1, 1) then
+            local distance
+            if is_within_one_identifier_edit(normalized, candidate_normalized) then
+                distance = 1
+            else
+                distance = csharp_identifier_distance(normalized, candidate_normalized)
+            end
+
+            if distance <= max_distance then
+                if distance < best_distance or (distance == best_distance and #candidate < #(best_match or "")) then
+                    best_match = candidate
+                    best_distance = distance
+                end
+            end
+        end
+    end
+
+    if not best_match or ident == best_match then
+        return "."
+    end
+
+    local backspace = vim.api.nvim_replace_termcodes("<BS>", true, false, true)
+    local undo_break = vim.api.nvim_replace_termcodes("<C-g>U", true, false, true)
+    return undo_break .. string.rep(backspace, #ident) .. best_match .. "."
 end
 
 local function c_matching_open_bracket(ch)
@@ -2890,6 +3321,7 @@ vim.api.nvim_create_autocmd("FileType", {
             vim.bo.expandtab = true
             set_buffer_insert_expr_callback(ev.buf, "{", c_smart_open_brace, "Smart open brace")
             set_buffer_insert_expr_callback(ev.buf, ";", c_smart_semicolon, "Smart semicolon")
+            set_buffer_insert_expr_callback(ev.buf, ".", csharp_correct_dot_identifier, "Smart C# dot correction")
         elseif ft == "python" then
             vim.bo.tabstop = 4
             vim.bo.shiftwidth = 4

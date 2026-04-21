@@ -1,0 +1,547 @@
+-- catppuccin_full_icon_logic
+--
+-- This module integrates the Catppuccin VS Code icon mappings into
+-- Neovim file explorer plugins.  It parses the official VS Code
+-- `theme.json` to extract associations between file names, folder
+-- names and icons, then exposes setup functions for mini.files,
+-- nvim‑tree, neo‑tree and oil.nvim.  You must download the
+-- Catppuccin VS Code icon repository and point this module at
+-- the `theme.json` file.
+
+local M = {}
+
+local theme = {}
+local loaded = false
+local theme_dir = nil
+local image_ns = vim.api.nvim_create_namespace("catppuccin_image_icons")
+local image_icons_enabled = true
+local icon_cache_dir = vim.fn.stdpath("cache") .. "/catppuccin-icons"
+local converted_cache = {}
+local render_opts = { width = 2, height = 1, col_offset = 2 }
+
+local function normalize_icon_path(path)
+  if not path then
+    return nil
+  end
+  if path:sub(1, 2) == "./" then
+    path = path:sub(3)
+  end
+  if theme_dir then
+    return theme_dir .. "/" .. path
+  end
+  return path
+end
+
+local function resolve_icon_path(icon_name)
+  if not loaded or not theme.iconDefinitions or not icon_name then
+    return nil
+  end
+  local def = theme.iconDefinitions[icon_name]
+  if not def then
+    return nil
+  end
+  local icon_path = normalize_icon_path(def.iconPath or def.icon)
+  if not icon_path then
+    return nil
+  end
+  if icon_path:sub(-4) ~= ".svg" then
+    return icon_path
+  end
+  if converted_cache[icon_path] then
+    return converted_cache[icon_path]
+  end
+  if vim.fn.executable("rsvg-convert") ~= 1 then
+    return nil
+  end
+  vim.fn.mkdir(icon_cache_dir, "p")
+  local png_path = icon_cache_dir .. "/" .. icon_name .. ".png"
+  local svg_stat = vim.loop.fs_stat(icon_path)
+  local png_stat = vim.loop.fs_stat(png_path)
+  if not png_stat or (svg_stat and png_stat.mtime.sec < svg_stat.mtime.sec) then
+    local cmd = { "rsvg-convert", "-o", png_path, icon_path }
+    vim.fn.system(cmd)
+    if vim.v.shell_error ~= 0 then
+      return nil
+    end
+  end
+  converted_cache[icon_path] = png_path
+  return png_path
+end
+
+local function file_icon_path(name)
+  if not loaded then
+    return nil
+  end
+  local icon_name = (theme.fileNames or {})[name]
+  if not icon_name then
+    local ext = name:match("%.([^.]+)$")
+    if ext then
+      icon_name = (theme.fileExtensions or {})[ext]
+    end
+  end
+  icon_name = icon_name or theme.file
+  return resolve_icon_path(icon_name)
+end
+
+local function folder_icon_path(name, expanded)
+  if not loaded then
+    return nil
+  end
+  local icon_name = nil
+  if expanded then
+    icon_name = (theme.folderNamesExpanded or {})[name]
+  end
+  icon_name = icon_name or (theme.folderNames or {})[name]
+  icon_name = icon_name or (expanded and theme.folderExpanded or theme.folder)
+  return resolve_icon_path(icon_name)
+end
+
+--- Load the Catppuccin VS Code icon theme.
+--
+-- @param json_path string: absolute path to `theme.json` from the
+--   `catppuccin/vscode-icons` repository (e.g. `icons/mocha/theme.json`).
+--   Once loaded, the mappings are stored in the `theme` table.
+function M.load_theme(json_path)
+  local ok, content = pcall(vim.fn.readfile, json_path)
+  if not ok then
+    vim.notify('catppuccin_full_icon_logic: could not read theme file: ' .. json_path, vim.log.levels.ERROR)
+    return
+  end
+  local ok_json, parsed = pcall(vim.fn.json_decode, table.concat(content, '\n'))
+  if not ok_json then
+    vim.notify('catppuccin_full_icon_logic: invalid JSON in theme file', vim.log.levels.ERROR)
+    return
+  end
+  theme = parsed
+  theme_dir = vim.fn.fnamemodify(json_path, ":h")
+  loaded = true
+end
+
+-- Internal function to build an icon mapping for mini.files.  The
+-- returned table can be passed directly to `mini.files.setup({ icons =
+-- ... })`.  The function constructs four sub‑tables: `directory`,
+-- `file`, `extension` and `symbol`.  Unknown entries fallback to
+-- mini.files default icons.
+local function build_mini_icons()
+  local icons = { directory = {}, file = {}, extension = {}, symbol = {} }
+  if not loaded or not theme.iconDefinitions then
+    return icons
+  end
+  -- Map directories
+  for name, icon in pairs(theme.folderNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      icons.directory[name] = path
+    end
+  end
+  for name, icon in pairs(theme.folderNamesExpanded or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      icons.directory[name] = path
+    end
+  end
+  -- Map specific filenames (e.g. package.json)
+  for filename, icon in pairs(theme.fileNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      icons.file[filename] = path
+    end
+  end
+  -- Map extensions (e.g. .js, .ts)
+  for ext, icon in pairs(theme.fileExtensions or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      icons.extension[ext] = path
+    end
+  end
+  -- Map language ids (used as symbol icons)
+  for lang, icon in pairs(theme.languageIds or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      icons.symbol[lang] = path
+    end
+  end
+  return icons
+end
+
+--- Setup mini.files icons using the loaded theme.
+--
+-- Call this after running `load_theme()`.  It will override the
+-- `icons` section of mini.files configuration.
+function M.setup_mini_files(opts)
+  opts = opts or {}
+  local icons = build_mini_icons()
+  require('mini.files').setup(vim.tbl_deep_extend('force', {
+    icons = icons,
+  }, opts))
+end
+
+--- Build nvim‑tree icon configuration from the loaded theme.
+--
+-- @return table: renderer.icons.glyphs table for nvim‑tree
+local function build_nvimtree_icons()
+  -- Default structure nvim-tree expects
+  local glyphs = {
+    default = '',
+    symlink = '',
+    bookmark = '',
+    folder = {
+      arrow_closed = '',
+      arrow_open = '',
+      default = '',
+      open = '',
+      empty = '',
+      empty_open = '',
+      symlink = '',
+      symlink_open = '',
+    },
+    git = { unstaged = '', staged = 'S', unmerged = '', renamed = '➜', untracked = 'U', deleted = '', ignored = '◌' },
+  }
+  if not loaded or not theme.iconDefinitions then
+    return glyphs
+  end
+  -- Map folder names (nvim-tree uses special_files or custom folder icons)
+  glyphs.folder.special = {}
+  for name, icon in pairs(theme.folderNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      glyphs.folder.special[name] = path
+    end
+  end
+  for name, icon in pairs(theme.folderNamesExpanded or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      glyphs.folder.special[name] = path
+    end
+  end
+  -- Map filenames to special file icons
+  glyphs.special_files = {}
+  for filename, icon in pairs(theme.fileNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      glyphs.special_files[filename] = path
+    end
+  end
+  -- Map extensions to default icon (nvim-tree doesn't directly support per-extension icons, but file icons are used for unknown names)
+  return glyphs
+end
+
+--- Setup nvim-tree icons using the loaded theme.
+function M.setup_nvim_tree(opts)
+  opts = opts or {}
+  local icons = build_nvimtree_icons()
+  require('nvim-tree').setup(vim.tbl_deep_extend('force', {
+    renderer = {
+      icons = {
+        glyphs = icons,
+      },
+    },
+  }, opts))
+end
+
+--- Build neo-tree custom renderers.  This maps folder and file icons.
+--
+-- neo-tree uses a `renderers` table per source.  We override the
+-- `directory` and `file` components to include our icons.  Unknown
+-- items fallback to defaults.
+local function build_neotree_renderers()
+  local renderers = {}
+  if not loaded or not theme.iconDefinitions then
+    return renderers
+  end
+  local folder_icons = {}
+  for name, icon in pairs(theme.folderNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      folder_icons[name] = path
+    end
+  end
+  for name, icon in pairs(theme.folderNamesExpanded or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      folder_icons[name] = path
+    end
+  end
+  local file_icons = {}
+  for filename, icon in pairs(theme.fileNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      file_icons[filename] = path
+    end
+  end
+  -- Build component overrides for neo-tree
+  renderers.directory = {
+    { 'icon', highlight = 'DirectoryIcon' },
+    { 'name', use_git_status_colors = true },
+  }
+  renderers.file = {
+    { 'icon', highlight = 'FileIcon' },
+    { 'name', use_git_status_colors = true },
+  }
+  return renderers, file_icons, folder_icons
+end
+
+--- Setup neo-tree icons using the loaded theme.
+function M.setup_neo_tree(opts)
+  opts = opts or {}
+  local renderers, file_icons, folder_icons = build_neotree_renderers()
+  require('neo-tree').setup(vim.tbl_deep_extend('force', {
+    filesystem = {
+      renderers = renderers,
+      filtered_items = {
+        hide_dotfiles = false,
+        hide_gitignored = false,
+        hide_hidden = false,
+      },
+      components = {
+        icon = function(config, node, state)
+          local name = node.name
+          local is_dir = node.type == 'directory'
+          local icon = nil
+          if is_dir then
+            icon = folder_icons[name]
+          else
+            icon = file_icons[name]
+          end
+          if not icon then
+            return { text = config.default, highlight = config.highlight }
+          end
+          return { text = icon, highlight = config.highlight }
+        end,
+      },
+    },
+  }, opts))
+end
+
+--- Setup oil.nvim icons using the loaded theme.
+--
+-- oil.nvim uses a `view_options` table for icons.  We map folder and
+-- file names to our icons.  Unknown names fallback to the default.
+function M.setup_oil(opts)
+  opts = opts or {}
+  if not loaded then
+    require('oil').setup(opts)
+    return
+  end
+  local dir_icons = {}
+  local file_icons = {}
+  for name, icon in pairs(theme.folderNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      dir_icons[name] = path
+    end
+  end
+  for name, icon in pairs(theme.folderNamesExpanded or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      dir_icons[name] = path
+    end
+  end
+  for filename, icon in pairs(theme.fileNames or {}) do
+    local path = resolve_icon_path(icon)
+    if path then
+      file_icons[filename] = path
+    end
+  end
+  require('oil').setup(vim.tbl_deep_extend('force', {
+    view_options = {
+      show_icons = {
+        file = true,
+        folder = true,
+      },
+      file_icons = file_icons,
+      dir_icons = dir_icons,
+    },
+  }, opts))
+end
+
+local function get_image_api()
+  local ok, api = pcall(require, "image")
+  if ok then
+    return api
+  end
+  return nil
+end
+
+local function clear_images(bufnr)
+  local api = get_image_api()
+  if not api then
+    return
+  end
+  for _, img in ipairs(api.get_images({ buffer = bufnr, namespace = image_ns })) do
+    img:clear(true)
+  end
+end
+
+local function render_image(bufnr, winid, row, col, path, size, id)
+  local api = get_image_api()
+  if not api or not path or not image_icons_enabled then
+    return
+  end
+  if not vim.loop.fs_stat(path) then
+    return
+  end
+  if not vim.api.nvim_win_is_valid(winid) then
+    return
+  end
+  local linecount = vim.api.nvim_buf_line_count(bufnr)
+  if row < 1 or row > linecount then
+    return
+  end
+  -- image.nvim expects 0-based extmark row; keep column 0-based
+  local y0 = math.min(math.max(row - 1, 0), linecount - 1)
+  local ok, img = pcall(api.from_file, path, {
+    buffer = bufnr,
+    window = winid,
+    namespace = image_ns,
+    x = col,
+    y = y0,
+    width = size.width,
+    height = size.height,
+    inline = false,
+    with_virtual_padding = false,
+    id = id,
+  })
+  if ok and img then
+    img.geometry.y = y0
+    img.geometry.x = math.max(img.geometry.x or col, 0)
+    local ok_render = pcall(function() img:render() end)
+    if not ok_render then
+      img:clear(true)
+    end
+  else
+    image_icons_enabled = false
+    vim.notify("Catppuccin image icons disabled: image.nvim failed to render", vim.log.levels.WARN)
+  end
+end
+
+local function render_icons_in_neotree_state(state, size)
+  if not state or not state.tree or not state.winid or not state.bufnr then
+    return
+  end
+  if not vim.api.nvim_win_is_valid(state.winid) then
+    return
+  end
+  clear_images(state.bufnr)
+  local function handle_node(node)
+    local name = node.name
+    local icon_path = nil
+    if node.type == "directory" then
+      local expanded = node.is_expanded or false
+      icon_path = folder_icon_path(name, expanded)
+    elseif node.type == "file" then
+      icon_path = file_icon_path(name)
+    end
+    if icon_path then
+      local _, lnum = state.tree:get_node(node:get_id())
+      if lnum then
+        local linecount = vim.api.nvim_buf_line_count(state.bufnr)
+        if lnum > linecount then
+          return
+        end
+        local indent_size = 2
+        local padding = 1
+        local indent_cfg = state.default_component_configs and state.default_component_configs.indent
+        if indent_cfg then
+          indent_size = indent_cfg.indent_size or indent_size
+          padding = indent_cfg.padding or padding
+        end
+
+        local depth = node.get_depth and node:get_depth() or 0
+        local gap = -2
+        local x = math.floor(math.max(depth * indent_size + padding + gap, 0))
+
+        local y = (depth == 0) and lnum or lnum -- keep on same line; root not lifted
+        render_image(state.bufnr, state.winid, y, x, icon_path, size, "cp:" .. node:get_id())
+      end
+    end
+    for _, child in ipairs(state.tree:get_nodes(node:get_id())) do
+      handle_node(child)
+    end
+  end
+  for _, node in ipairs(state.tree:get_nodes()) do
+    handle_node(node)
+  end
+end
+
+local function render_icons_in_minifiles(winid, bufnr, size)
+  local ok, mini_files = pcall(require, "mini.files")
+  if not ok then
+    return
+  end
+  clear_images(bufnr)
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  for lnum = 1, line_count do
+    local entry = mini_files.get_fs_entry(bufnr, lnum)
+    if entry and entry.name then
+      local icon_path = entry.fs_type == "directory"
+          and folder_icon_path(entry.name, false)
+        or file_icon_path(entry.name)
+      if icon_path then
+        local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+        local start = line:find(entry.name, 1, true)
+        if start then
+          local prefix = line:sub(1, start - 1)
+          local prefix_cols = vim.fn.strdisplaywidth(prefix)
+          local col = math.max(prefix_cols - 2, 0)
+          render_image(bufnr, winid, lnum - 1, col, icon_path, size)
+        else
+          local first = line:find("%S")
+          if first then
+            local prefix = line:sub(1, first - 1)
+            local prefix_cols = vim.fn.strdisplaywidth(prefix)
+            local col = math.max(prefix_cols, 0)
+            render_image(bufnr, winid, lnum - 1, col, icon_path, size)
+          end
+        end
+      end
+    end
+  end
+end
+
+--- Enable image icons for file explorers (neo-tree, mini.files, oil).
+function M.enable_image_icons(opts)
+  opts = opts or {}
+  if not loaded then
+    return
+  end
+  render_opts = {
+    width = opts.width or render_opts.width,
+    height = opts.height or render_opts.height,
+    col_offset = opts.col_offset or render_opts.col_offset,
+  }
+  image_icons_enabled = opts.enabled ~= false
+end
+
+function M.render_neotree_window(winid)
+  if not image_icons_enabled then
+    return
+  end
+  local bufnr = vim.api.nvim_win_get_buf(winid)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  local ok, manager = pcall(require, "neo-tree.sources.manager")
+  if not ok then
+    return
+  end
+  local state = manager.get_state_for_window(winid)
+  if not state then
+    return
+  end
+  render_icons_in_neotree_state(state, render_opts)
+end
+
+--- Render icons given a neo-tree state (called from patched renderer).
+---@param state table
+function M.render_neotree_state(state)
+  if not state or not state.tree or not state.bufnr or not state.winid then
+    return
+  end
+  if not image_icons_enabled then
+    return
+  end
+  render_icons_in_neotree_state(state, render_opts)
+end
+
+return M
