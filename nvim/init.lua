@@ -62,6 +62,7 @@ local CATPPUCCIN_DEFAULT_THEME = "mocha"
 local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
 local catppuccin_flavour_file = vim.fn.stdpath("state") .. "/catppuccin_flavour.txt"
 local color_theme_file = vim.fn.stdpath("state") .. "/color_theme.txt"
+local color_theme_favorites_file = vim.fn.stdpath("state") .. "/color_theme_favorites.txt"
 local kitty_config_file = vim.fn.expand("~/.config/kitty/kitty.conf")
 local kitty_current_theme_file = vim.fn.expand("~/.config/kitty/current-theme.conf")
 
@@ -102,25 +103,137 @@ local color_theme_specs = {
         label = "Catppuccin Latte",
         catppuccin = "latte",
         kitty = "Catppuccin-Latte",
+        kind = "catppuccin",
+        background = "light",
     },
     {
         id = "catppuccin-frappe",
         label = "Catppuccin Frappe",
         catppuccin = "frappe",
         kitty = "Catppuccin-Frappe",
+        kind = "catppuccin",
+        background = "dark",
     },
     {
         id = "catppuccin-macchiato",
         label = "Catppuccin Macchiato",
         catppuccin = "macchiato",
         kitty = "Catppuccin-Macchiato",
+        kind = "catppuccin",
+        background = "dark",
     },
     {
         id = "catppuccin-mocha",
         label = "Catppuccin Mocha",
         catppuccin = "mocha",
         kitty = "Catppuccin-Mocha",
+        kind = "catppuccin",
+        background = "dark",
     },
+    {
+        id = "tokyonight",
+        label = "Tokyo Night",
+        nvim = "tokyonight",
+        family = "tokyonight",
+        style = "night",
+        kitty = "Tokyo Night",
+        background = "dark",
+    },
+    {
+        id = "tokyonight-day",
+        label = "Tokyo Day",
+        nvim = "tokyonight",
+        family = "tokyonight",
+        style = "day",
+        kitty = "Tokyo Night Day",
+        background = "light",
+    },
+    {
+        id = "kanagawa",
+        label = "Kanagawa",
+        nvim = "kanagawa",
+        family = "kanagawa",
+        kitty = "Kanagawa",
+        background = "dark",
+    },
+    {
+        id = "nightfox",
+        label = "Nightfox",
+        nvim = "nightfox",
+        family = "nightfox",
+        kitty = "Nightfox",
+        background = "dark",
+    },
+    {
+        id = "carbonfox",
+        label = "Carbonfox",
+        nvim = "carbonfox",
+        family = "nightfox",
+        kitty = "Carbonfox",
+        background = "dark",
+    },
+    {
+        id = "gruvbox-dark",
+        label = "Gruvbox Dark",
+        nvim = "gruvbox",
+        family = "gruvbox",
+        kitty = "Gruvbox Dark",
+        background = "dark",
+    },
+    {
+        id = "gruvbox-light",
+        label = "Gruvbox Light",
+        nvim = "gruvbox",
+        family = "gruvbox",
+        kitty = "Gruvbox Light",
+        background = "light",
+    },
+    {
+        id = "rose-pine",
+        label = "Rose Pine",
+        nvim = "rose-pine",
+        family = "rose-pine",
+        variant = "main",
+        kitty = "Rosé Pine",
+        background = "dark",
+    },
+    {
+        id = "nord",
+        label = "Nord",
+        nvim = "nord",
+        family = "nord",
+        kitty = "Nord",
+        background = "dark",
+    },
+    {
+        id = "everforest-dark",
+        label = "Everforest Dark",
+        nvim = "everforest",
+        family = "everforest",
+        style = "hard",
+        kitty = "Everforest Dark Hard",
+        background = "dark",
+    },
+}
+
+local main_color_theme_ids = {
+    "catppuccin-latte",
+    "catppuccin-frappe",
+    "catppuccin-macchiato",
+    "catppuccin-mocha",
+}
+
+local extra_color_theme_ids = {
+    "tokyonight",
+    "tokyonight-day",
+    "kanagawa",
+    "nightfox",
+    "carbonfox",
+    "gruvbox-dark",
+    "gruvbox-light",
+    "rose-pine",
+    "nord",
+    "everforest-dark",
 }
 
 local color_theme_by_id = {}
@@ -156,8 +269,80 @@ local function get_color_theme_spec(theme_id)
     return color_theme_by_id[normalize_color_theme_id(theme_id)]
 end
 
+local function get_color_theme_specs(theme_ids)
+    local specs = {}
+    for _, theme_id in ipairs(theme_ids or {}) do
+        local spec = get_color_theme_spec(theme_id)
+        if spec then
+            table.insert(specs, spec)
+        end
+    end
+    return specs
+end
+
 local function catppuccin_flavour_to_theme_id(flavour)
     return "catppuccin-" .. normalize_catppuccin_flavour(flavour)
+end
+
+local function read_color_theme_favorites()
+    local ok, lines = pcall(vim.fn.readfile, color_theme_favorites_file)
+    if not ok or type(lines) ~= "table" then
+        return {}
+    end
+
+    local seen = {}
+    local favorites = {}
+    for _, line in ipairs(lines) do
+        local theme_id = normalize_color_theme_id(line)
+        if not seen[theme_id] and vim.tbl_contains(extra_color_theme_ids, theme_id) then
+            table.insert(favorites, theme_id)
+            seen[theme_id] = true
+        end
+    end
+    return favorites
+end
+
+local function persist_color_theme_favorites(theme_ids)
+    local state_dir = vim.fn.fnamemodify(color_theme_favorites_file, ":h")
+    vim.fn.mkdir(state_dir, "p")
+    local ok = vim.fn.writefile(theme_ids, color_theme_favorites_file)
+    if ok ~= 0 then
+        vim.notify("Failed to persist favourite themes", vim.log.levels.WARN)
+    end
+end
+
+local function toggle_color_theme_favorite(theme_id)
+    local normalized = normalize_color_theme_id(theme_id)
+    if not vim.tbl_contains(extra_color_theme_ids, normalized) then
+        return false, false
+    end
+
+    local favorites = read_color_theme_favorites()
+    for index, favorite_id in ipairs(favorites) do
+        if favorite_id == normalized then
+            table.remove(favorites, index)
+            persist_color_theme_favorites(favorites)
+            return true, false
+        end
+    end
+
+    table.insert(favorites, normalized)
+    persist_color_theme_favorites(favorites)
+    return true, true
+end
+
+local function is_color_theme_favorite(theme_id)
+    local normalized = normalize_color_theme_id(theme_id)
+    for _, favorite_id in ipairs(read_color_theme_favorites()) do
+        if favorite_id == normalized then
+            return true
+        end
+    end
+    return false
+end
+
+local function get_favorite_color_theme_specs()
+    return get_color_theme_specs(read_color_theme_favorites())
 end
 
 local function persist_color_theme(theme_id)
@@ -300,10 +485,18 @@ local function sync_kitty_theme(theme_id, opts)
         return false, comment_err
     end
 
-    local can_reload_live = (vim.env.KITTY_LISTEN_ON and vim.env.KITTY_LISTEN_ON ~= "")
-        or (vim.env.KITTY_WINDOW_ID and vim.env.KITTY_WINDOW_ID ~= "")
+    local can_reload_live = type(vim.env.KITTY_LISTEN_ON) == "string" and vim.env.KITTY_LISTEN_ON ~= ""
     if opts.reload ~= false and can_reload_live then
-        local reload_output = vim.fn.system({ "kitty", "@", "set-colors", "--all", "--configured", kitty_current_theme_file })
+        local reload_output = vim.fn.system({
+            "kitty",
+            "@",
+            "--to",
+            vim.env.KITTY_LISTEN_ON,
+            "set-colors",
+            "--all",
+            "--configured",
+            kitty_current_theme_file,
+        })
         if vim.v.shell_error ~= 0 then
             local message = vim.trim(reload_output or "")
             if message == "" then
@@ -431,18 +624,121 @@ local function apply_catppuccin_theme(flavour, opts)
     vim.cmd("redraw!")
 end
 
-local function choose_catppuccin_flavour()
-    local themes = color_theme_specs
+local function apply_extra_color_theme(theme_id, opts)
+    opts = opts or {}
+    local spec = get_color_theme_spec(theme_id)
+    if not spec or spec.kind == "catppuccin" then
+        return
+    end
+
+    vim.g.color_theme = spec.id
+    if spec.background then
+        vim.o.background = spec.background
+    end
+
+    local ok_theme, theme_err = pcall(function()
+        if spec.family == "tokyonight" then
+            local ok, tokyonight = pcall(require, "tokyonight")
+            if ok and type(tokyonight.setup) == "function" then
+                tokyonight.setup({ style = spec.style or "night" })
+            end
+        elseif spec.family == "nightfox" then
+            local ok, nightfox = pcall(require, "nightfox")
+            if ok and type(nightfox.setup) == "function" then
+                nightfox.setup({})
+            end
+        elseif spec.family == "gruvbox" then
+            local ok, gruvbox = pcall(require, "gruvbox")
+            if ok and type(gruvbox.setup) == "function" then
+                gruvbox.setup({})
+            end
+        elseif spec.family == "rose-pine" then
+            local ok, rose_pine = pcall(require, "rose-pine")
+            if ok and type(rose_pine.setup) == "function" then
+                rose_pine.setup({ variant = spec.variant or "main" })
+            end
+        elseif spec.family == "everforest" then
+            vim.g.everforest_background = spec.style or "medium"
+        end
+
+        vim.cmd.colorscheme(spec.nvim)
+    end)
+    if not ok_theme then
+        vim.notify("Failed to apply theme: " .. tostring(theme_err), vim.log.levels.ERROR)
+        return
+    end
+
+    clear_catppuccin_reactive_presets()
+
+    if type(_G.__setup_feline_default) == "function" then
+        local ok_feline, feline_err = pcall(_G.__setup_feline_default)
+        if not ok_feline then
+            vim.notify("Feline refresh failed: " .. tostring(feline_err), vim.log.levels.WARN)
+        end
+    end
+
+    if opts.persist ~= false then
+        persist_color_theme(spec.id)
+    end
+
+    if opts.sync_kitty ~= false then
+        local ok_kitty, kitty_err = sync_kitty_theme(spec.id, {
+            reload = opts.reload_kitty ~= false,
+        })
+        if not ok_kitty then
+            vim.notify("Kitty theme sync failed: " .. tostring(kitty_err), vim.log.levels.WARN)
+        end
+    end
+
+    vim.cmd("redrawstatus")
+    vim.cmd("redraw!")
+end
+
+local function apply_color_theme(theme_id, opts)
+    local spec = get_color_theme_spec(theme_id)
+    if not spec then
+        return
+    end
+
+    if spec.kind == "catppuccin" then
+        apply_catppuccin_theme(spec.catppuccin, vim.tbl_extend("force", opts or {}, {
+            theme_id = spec.id,
+        }))
+        return
+    end
+
+    apply_extra_color_theme(spec.id, opts)
+end
+
+local function open_color_theme_picker(opts)
+    opts = opts or {}
+    local entries = opts.entries or {}
     local current = normalize_color_theme_id(vim.g.color_theme or catppuccin_flavour_to_theme_id(vim.g.catppuccin_flavour))
     local lines = {
-        "Colour Theme",
-        "j/k move, <CR> choose, 1-" .. tostring(#themes) .. " quick select, q close",
+        opts.title or "Colour Theme",
+        opts.help or "j/k move, <CR> choose, q close",
         "",
     }
 
-    for i, theme in ipairs(themes) do
-        local marker = theme.id == current and "*" or " "
-        table.insert(lines, string.format("%s %d. %s", marker, i, theme.label))
+    local entry_rows = {}
+    local entry_by_shortcut = {}
+    for _, entry in ipairs(entries) do
+        if entry.separator then
+            table.insert(lines, "")
+        else
+            local prefix = "  "
+            if entry.theme then
+                prefix = (entry.theme.id == current and "*" or " ")
+                    .. (is_color_theme_favorite(entry.theme.id) and "+" or " ")
+            end
+            local label = entry.label
+            if entry.shortcut then
+                label = entry.shortcut .. ". " .. label
+                entry_by_shortcut[entry.shortcut] = entry
+            end
+            table.insert(lines, prefix .. " " .. label)
+            entry_rows[#lines] = entry
+        end
     end
 
     local width = 0
@@ -476,16 +772,11 @@ local function choose_catppuccin_flavour()
     vim.wo[win].relativenumber = false
     vim.wo[win].signcolumn = "no"
 
-    local first_choice_row = 4
-    local last_choice_row = first_choice_row + #themes - 1
-    local start_row = first_choice_row
-    for i, theme in ipairs(themes) do
-        if theme.id == current then
-            start_row = first_choice_row + i - 1
-            break
-        end
+    local selectable_rows = {}
+    for line_number, entry in pairs(entry_rows) do
+        table.insert(selectable_rows, line_number)
     end
-    vim.api.nvim_win_set_cursor(win, { start_row, 0 })
+    table.sort(selectable_rows)
 
     local function close_picker()
         if vim.api.nvim_win_is_valid(win) then
@@ -493,31 +784,74 @@ local function choose_catppuccin_flavour()
         end
     end
 
-    local function select_index(index)
-        local theme = themes[index]
-        if not theme then
+    local function get_selected_entry()
+        if not vim.api.nvim_win_is_valid(win) then
+            return nil
+        end
+        local cursor_row = vim.api.nvim_win_get_cursor(win)[1]
+        return entry_rows[cursor_row], cursor_row
+    end
+
+    local start_row = selectable_rows[1] or 1
+    for _, line_number in ipairs(selectable_rows) do
+        local entry = entry_rows[line_number]
+        if entry and entry.theme and entry.theme.id == current then
+            start_row = line_number
+            break
+        end
+    end
+    vim.api.nvim_win_set_cursor(win, { start_row, 0 })
+
+    local function select_entry(entry)
+        if not entry then
             return
         end
         close_picker()
-        apply_catppuccin_theme(theme.catppuccin, { theme_id = theme.id })
+        if entry.action then
+            entry.action()
+            return
+        end
+        if entry.theme then
+            apply_color_theme(entry.theme.id)
+        end
     end
 
     local function select_current_row()
-        if not vim.api.nvim_win_is_valid(win) then
-            return
-        end
-        local cursor_row = vim.api.nvim_win_get_cursor(win)[1]
-        local index = cursor_row - first_choice_row + 1
-        select_index(index)
+        local entry = get_selected_entry()
+        select_entry(entry)
     end
 
     local function move_cursor(delta)
-        if not vim.api.nvim_win_is_valid(win) then
+        if not vim.api.nvim_win_is_valid(win) or #selectable_rows == 0 then
             return
         end
         local cursor_row = vim.api.nvim_win_get_cursor(win)[1]
-        local new_row = math.min(last_choice_row, math.max(first_choice_row, cursor_row + delta))
-        vim.api.nvim_win_set_cursor(win, { new_row, 0 })
+        local current_index = 1
+        for index, line_number in ipairs(selectable_rows) do
+            if line_number == cursor_row then
+                current_index = index
+                break
+            end
+        end
+        local new_index = math.min(#selectable_rows, math.max(1, current_index + delta))
+        vim.api.nvim_win_set_cursor(win, { selectable_rows[new_index], 0 })
+    end
+
+    local function toggle_favorite_for_current()
+        local entry, line_number = get_selected_entry()
+        if not entry or not entry.theme then
+            return
+        end
+        local ok_toggle = toggle_color_theme_favorite(entry.theme.id)
+        if not ok_toggle then
+            return
+        end
+        close_picker()
+        if type(opts.on_refresh) == "function" then
+            vim.schedule(function()
+                opts.on_refresh(entry.theme.id or line_number)
+            end)
+        end
     end
 
     local keyopts = { buffer = buf, nowait = true, silent = true }
@@ -529,9 +863,72 @@ local function choose_catppuccin_flavour()
     vim.keymap.set("n", "<Down>", function() move_cursor(1) end, keyopts)
     vim.keymap.set("n", "<Up>", function() move_cursor(-1) end, keyopts)
 
-    for i = 1, #themes do
-        vim.keymap.set("n", tostring(i), function() select_index(i) end, keyopts)
+    if opts.allow_favorites then
+        vim.keymap.set("n", "f", toggle_favorite_for_current, keyopts)
     end
+
+    for shortcut, entry in pairs(entry_by_shortcut) do
+        vim.keymap.set("n", shortcut, function() select_entry(entry) end, keyopts)
+    end
+end
+
+local function open_more_color_theme_picker(start_theme_id)
+    local entries = {}
+    local shortcuts = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" }
+    for index, spec in ipairs(get_color_theme_specs(extra_color_theme_ids)) do
+        table.insert(entries, {
+            theme = spec,
+            label = spec.label,
+            shortcut = shortcuts[index],
+        })
+    end
+
+    open_color_theme_picker({
+        title = "More Themes",
+        help = "j/k move, <CR> choose, f fav, q close",
+        entries = entries,
+        allow_favorites = true,
+        on_refresh = function(theme_id)
+            open_more_color_theme_picker(theme_id or start_theme_id)
+        end,
+    })
+end
+
+local function choose_catppuccin_flavour()
+    local entries = {}
+    for index, spec in ipairs(get_color_theme_specs(main_color_theme_ids)) do
+        table.insert(entries, {
+            theme = spec,
+            label = spec.label,
+            shortcut = tostring(index),
+        })
+    end
+
+    local favorites = get_favorite_color_theme_specs()
+    if #favorites > 0 then
+        table.insert(entries, { separator = true })
+        for _, spec in ipairs(favorites) do
+            table.insert(entries, {
+                theme = spec,
+                label = spec.label,
+            })
+        end
+    end
+
+    table.insert(entries, { separator = true })
+    table.insert(entries, {
+        label = "More",
+        shortcut = "0",
+        action = function()
+            open_more_color_theme_picker()
+        end,
+    })
+
+    open_color_theme_picker({
+        title = "Colour Theme",
+        help = "j/k move, <CR> choose, 0 more, q close",
+        entries = entries,
+    })
 end
 
 vim.g.color_theme = normalize_color_theme_id(read_color_theme_id() or COLOR_THEME_DEFAULT)
@@ -1118,13 +1515,28 @@ require("lazy").setup({
                     end
                 end
             end
-            _G.__setup_reactive_catppuccin(vim.g.catppuccin_flavour)
+            local current_theme = get_color_theme_spec(vim.g.color_theme)
+            if current_theme and current_theme.kind == "catppuccin" then
+                _G.__setup_reactive_catppuccin(vim.g.catppuccin_flavour)
+            else
+                clear_catppuccin_reactive_presets()
+            end
         end,
     },
     {
         "famiu/feline.nvim",
         dependencies = { "catppuccin/nvim", "nvim-tree/nvim-web-devicons" },
         config = function()
+            _G.__setup_feline_default = function()
+                clear_catppuccin_feline_cache()
+                clear_feline_cache()
+
+                local feline = require("feline")
+                feline.setup()
+                pcall(feline.reset_highlights)
+                vim.cmd("redrawstatus")
+            end
+
             _G.__setup_feline_catppuccin = function(flavour)
                 local value = normalize_catppuccin_flavour(flavour or vim.g.catppuccin_flavour)
                 vim.g.catppuccin_flavour = value
@@ -1189,7 +1601,12 @@ require("lazy").setup({
                     vim.cmd("redrawstatus")
                 end
             end
-            _G.__setup_feline_catppuccin(vim.g.catppuccin_flavour)
+            local current_theme = get_color_theme_spec(vim.g.color_theme)
+            if current_theme and current_theme.kind == "catppuccin" then
+                _G.__setup_feline_catppuccin(vim.g.catppuccin_flavour)
+            else
+                _G.__setup_feline_default()
+            end
         end,
     },
     {
@@ -1210,12 +1627,51 @@ require("lazy").setup({
                 local value = normalize_catppuccin_flavour(flavour or vim.g.catppuccin_flavour)
                 load_catppuccin_colorscheme(value)
             end
-            _G.__setup_catppuccin_theme(vim.g.catppuccin_flavour)
-            _G.__load_catppuccin_flavour(vim.g.catppuccin_flavour)
-            if type(_G.__setup_feline_catppuccin) == "function" then
-                _G.__setup_feline_catppuccin(vim.g.catppuccin_flavour)
+            local current_theme = get_color_theme_spec(vim.g.color_theme)
+            if current_theme and current_theme.kind == "catppuccin" then
+                _G.__setup_catppuccin_theme(vim.g.catppuccin_flavour)
+                _G.__load_catppuccin_flavour(vim.g.catppuccin_flavour)
+                if type(_G.__setup_feline_catppuccin) == "function" then
+                    _G.__setup_feline_catppuccin(vim.g.catppuccin_flavour)
+                end
             end
         end,
+    },
+    {
+        "folke/tokyonight.nvim",
+        lazy = false,
+        priority = 1000,
+    },
+    {
+        "rebelot/kanagawa.nvim",
+        lazy = false,
+        priority = 1000,
+    },
+    {
+        "EdenEast/nightfox.nvim",
+        lazy = false,
+        priority = 1000,
+    },
+    {
+        "ellisonleao/gruvbox.nvim",
+        lazy = false,
+        priority = 1000,
+    },
+    {
+        "rose-pine/neovim",
+        name = "rose-pine",
+        lazy = false,
+        priority = 1000,
+    },
+    {
+        "shaunsingh/nord.nvim",
+        lazy = false,
+        priority = 1000,
+    },
+    {
+        "sainnhe/everforest",
+        lazy = false,
+        priority = 1000,
     },
     {
         "echasnovski/mini.ai",
@@ -1859,6 +2315,14 @@ require("lazy").setup({
         end,
     },
 })
+
+vim.schedule(function()
+    apply_color_theme(vim.g.color_theme, {
+        persist = false,
+        sync_kitty = false,
+        reload_kitty = false,
+    })
+end)
 
 -- LSP and diagnostics configuration
 local cmp_caps = require("cmp_nvim_lsp").default_capabilities()
