@@ -485,17 +485,15 @@ local function sync_kitty_theme(theme_id, opts)
         return false, comment_err
     end
 
-    local can_reload_live = type(vim.env.KITTY_LISTEN_ON) == "string" and vim.env.KITTY_LISTEN_ON ~= ""
-    if opts.reload ~= false and can_reload_live then
+    if opts.reload ~= false then
         local reload_output = vim.fn.system({
             "kitty",
-            "@",
-            "--to",
-            vim.env.KITTY_LISTEN_ON,
-            "set-colors",
-            "--all",
-            "--configured",
-            kitty_current_theme_file,
+            "+kitten",
+            "themes",
+            "--reload-in=all",
+            "--config-file-name",
+            kitty_config_file,
+            spec.kitty,
         })
         if vim.v.shell_error ~= 0 then
             local message = vim.trim(reload_output or "")
