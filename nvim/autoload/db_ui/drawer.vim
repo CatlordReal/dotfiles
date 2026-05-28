@@ -457,6 +457,21 @@ function! s:drawer.render_tables(tables, db, path, level, schema) abort
   endfor
 endfunction
 
+function! s:drawer.render_views(views, db, level, schema) abort
+  if !a:views.expanded
+    return
+  endif
+  if type(g:Db_ui_table_name_sorter) ==? type(function('tr'))
+    let views_list = call(g:Db_ui_table_name_sorter, [a:views.list])
+  else
+    let views_list = a:views.list
+  endif
+  let list_query = get(a:db.table_helpers, 'List', g:db_ui_default_query)
+  for view in views_list
+    call self.add(view, 'open_execute', 'table', g:db_ui_icons.tables, a:db.key_name, a:level, {'table': view, 'content': list_query, 'schema': a:schema })
+  endfor
+endfunction
+
 function! s:drawer.toggle_line(edit_action) abort
   let item = self.get_current_item()
   if item.action ==? 'noaction'
@@ -475,6 +490,12 @@ function! s:drawer.toggle_line(edit_action) abort
 
   if item.action ==? 'open'
     return self.get_query().open(item, a:edit_action)
+  endif
+
+  if item.action ==? 'open_execute'
+    let query = self.get_query()
+    call query.open(item, a:edit_action)
+    return query.execute_query()
   endif
 
   let db = self.dbui.dbs[item.dbui_db_key_name]
@@ -763,7 +784,7 @@ function! s:drawer._render_schemas_section(db) abort
     call self.render_tables(a:db.tables, a:db, 'tables->items', 2, '')
     if has_key(a:db, 'views') && !empty(a:db.views.list)
       call self.add('Views ('.len(a:db.views.list).')', 'toggle', 'views', self.get_toggle_icon('tables', a:db.views), a:db.key_name, 1, { 'expanded': a:db.views.expanded })
-      call self.render_tables(a:db.views, a:db, 'views->items', 2, '')
+      call self.render_views(a:db.views, a:db, 2, '')
     endif
   endif
 endfunction
