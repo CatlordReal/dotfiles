@@ -1103,6 +1103,268 @@ require("lazy").setup({
             })
         end,
     },
+    {
+        "nvim-neo-tree/neo-tree.nvim",
+        branch = "v3.x",
+        dependencies = {
+            "nvim-lua/plenary.nvim",
+            "nvim-tree/nvim-web-devicons",
+            "MunifTanjim/nui.nvim",
+        },
+        cmd = { "Neotree" },
+        keys = {
+            { "<leader>nt", false },
+        },
+        opts = {
+            close_if_last_window = true,
+            enable_git_status = true,
+            enable_diagnostics = true,
+            filesystem = {
+                follow_current_file = {
+                    enabled = true,
+                },
+                filtered_items = {
+                    visible = true,
+                    hide_dotfiles = false,
+                    hide_gitignored = false,
+                },
+                use_libuv_file_watcher = true,
+            },
+            window = {
+                width = 34,
+            },
+        },
+    },
+    {
+        "backdround/global-note.nvim",
+        cmd = { "GlobalNote", "ProjectNote" },
+        keys = {
+            {
+                "<leader>ng",
+                function() require("global-note").toggle_note() end,
+                desc = "Global Note",
+            },
+            {
+                "<leader>np",
+                function() require("global-note").toggle_note("project_local") end,
+                desc = "Project Note",
+            },
+        },
+        config = function()
+            local global_note = require("global-note")
+            local notes_dir = vim.fs.joinpath(vim.fn.stdpath("data"), "global-note")
+            local note_float_config = nil
+
+            local function sanitize_note_name(value)
+                value = tostring(value or ""):gsub("\\", "/"):gsub("^%s+", ""):gsub("%s+$", "")
+                value = value:gsub("[^%w%._%-/]", "-"):gsub("/", "%%")
+                value = value:gsub("%-+", "-"):gsub("%%+", "%%")
+                if value == "" then
+                    return "project"
+                end
+                return value
+            end
+
+            local function get_project_root()
+                local result = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true }):wait()
+                if result.code == 0 and type(result.stdout) == "string" and vim.trim(result.stdout) ~= "" then
+                    return vim.trim(result.stdout)
+                end
+                return vim.loop.cwd() or vim.fn.getcwd()
+            end
+
+            local function project_note_filename()
+                return sanitize_note_name(get_project_root()) .. ".md"
+            end
+
+            local function project_note_title()
+                return "Project note: " .. (vim.fs.basename(get_project_root()) or "project")
+            end
+
+            local function clamp_note_config(config)
+                local ui = vim.api.nvim_list_uis()[1] or { width = vim.o.columns, height = vim.o.lines }
+                local max_width = math.max(40, ui.width - 4)
+                local max_height = math.max(10, ui.height - 4)
+
+                config.width = math.max(40, math.min(tonumber(config.width) or 80, max_width))
+                config.height = math.max(10, math.min(tonumber(config.height) or 20, max_height))
+                config.row = math.max(0, math.min(tonumber(config.row) or 1, ui.height - config.height - 2))
+                config.col = math.max(0, math.min(tonumber(config.col) or 1, ui.width - config.width - 2))
+                config.row = math.floor(config.row)
+                config.col = math.floor(config.col)
+                config.width = math.floor(config.width)
+                config.height = math.floor(config.height)
+                return config
+            end
+
+            local function default_note_config(title)
+                local ui = vim.api.nvim_list_uis()[1] or { width = vim.o.columns, height = vim.o.lines }
+                local width = math.floor(ui.width * 0.62)
+                local height = math.floor(ui.height * 0.7)
+                return clamp_note_config({
+                    relative = "editor",
+                    style = "minimal",
+                    border = "rounded",
+                    title = title,
+                    title_pos = "center",
+                    width = width,
+                    height = height,
+                    row = math.floor((ui.height - height) / 2),
+                    col = math.floor((ui.width - width) / 2),
+                })
+            end
+
+            local function note_window_config(title)
+                local config = vim.deepcopy(note_float_config or default_note_config(title))
+                config.relative = "editor"
+                config.style = "minimal"
+                config.border = "rounded"
+                config.title = title
+                config.title_pos = "center"
+                return clamp_note_config(config)
+            end
+
+            local function is_note_window(win)
+                return win and vim.api.nvim_win_is_valid(win) and vim.w[win].global_note_float == true
+            end
+
+            local function update_note_window(win, updates)
+                win = win or vim.api.nvim_get_current_win()
+                if not is_note_window(win) then
+                    return
+                end
+
+                local config = vim.api.nvim_win_get_config(win)
+                config.row = (tonumber(config.row) or 0) + (updates.row or 0)
+                config.col = (tonumber(config.col) or 0) + (updates.col or 0)
+                config.width = (tonumber(config.width) or 80) + (updates.width or 0)
+                config.height = (tonumber(config.height) or 20) + (updates.height or 0)
+                config = clamp_note_config(config)
+                vim.api.nvim_win_set_config(win, config)
+                note_float_config = vim.deepcopy(config)
+            end
+
+            local function note_move_mode()
+                local win = vim.api.nvim_get_current_win()
+                if not is_note_window(win) then
+                    return
+                end
+
+                vim.notify("Note move mode: h/j/k/l move, H/J/K/L resize, q or Esc exits", vim.log.levels.INFO)
+                while vim.api.nvim_win_is_valid(win) do
+                    local key = vim.fn.getcharstr()
+                    if key == "q" or key == "\27" then
+                        break
+                    elseif key == "h" then
+                        update_note_window(win, { col = -4 })
+                    elseif key == "j" then
+                        update_note_window(win, { row = 2 })
+                    elseif key == "k" then
+                        update_note_window(win, { row = -2 })
+                    elseif key == "l" then
+                        update_note_window(win, { col = 4 })
+                    elseif key == "H" then
+                        update_note_window(win, { width = -4 })
+                    elseif key == "J" then
+                        update_note_window(win, { height = 2 })
+                    elseif key == "K" then
+                        update_note_window(win, { height = -2 })
+                    elseif key == "L" then
+                        update_note_window(win, { width = 4 })
+                    end
+                end
+            end
+
+            local function configure_note_buffer(buf, win)
+                vim.w[win].global_note_float = true
+                vim.bo[buf].filetype = "markdown"
+                vim.bo[buf].buflisted = false
+                vim.bo[buf].swapfile = false
+                vim.wo[win].number = false
+                vim.wo[win].relativenumber = false
+                vim.wo[win].signcolumn = "no"
+                vim.wo[win].wrap = true
+                vim.wo[win].linebreak = true
+                vim.wo[win].conceallevel = 2
+                vim.wo[win].winhighlight = "Normal:GlobalNoteNormal,FloatBorder:GlobalNoteBorder,FloatTitle:GlobalNoteTitle"
+
+                local opts = { buffer = buf, silent = true }
+                vim.keymap.set("n", "<C-h>", function() update_note_window(win, { col = -4 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Move note left" }))
+                vim.keymap.set("n", "<C-j>", function() update_note_window(win, { row = 2 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Move note down" }))
+                vim.keymap.set("n", "<C-k>", function() update_note_window(win, { row = -2 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Move note up" }))
+                vim.keymap.set("n", "<C-l>", function() update_note_window(win, { col = 4 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Move note right" }))
+                vim.keymap.set("n", "<M-h>", function() update_note_window(win, { width = -4 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Narrow note" }))
+                vim.keymap.set("n", "<M-j>", function() update_note_window(win, { height = 2 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Taller note" }))
+                vim.keymap.set("n", "<M-k>", function() update_note_window(win, { height = -2 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Shorter note" }))
+                vim.keymap.set("n", "<M-l>", function() update_note_window(win, { width = 4 }) end,
+                    vim.tbl_extend("force", opts, { desc = "Widen note" }))
+                vim.keymap.set("n", "<leader>nm", note_move_mode,
+                    vim.tbl_extend("force", opts, { desc = "Note move mode" }))
+
+                vim.schedule(function()
+                    if vim.api.nvim_buf_is_valid(buf) then
+                        vim.api.nvim_buf_call(buf, function()
+                            pcall(function() require("render-markdown").buf_enable() end)
+                        end)
+                    end
+                end)
+            end
+
+            vim.api.nvim_set_hl(0, "GlobalNoteNormal", { bg = "NONE" })
+            vim.api.nvim_set_hl(0, "GlobalNoteBorder", { fg = "#89b4fa", bg = "NONE" })
+            vim.api.nvim_set_hl(0, "GlobalNoteTitle", { fg = "#f9e2af", bold = true })
+
+            global_note.setup({
+                filename = "global.md",
+                directory = notes_dir,
+                title = "Global notes",
+                command_name = "GlobalNote",
+                window_config = function()
+                    return note_window_config("Global notes")
+                end,
+                post_open = configure_note_buffer,
+                autosave = true,
+                additional_presets = {
+                    project_local = {
+                        filename = project_note_filename,
+                        directory = vim.fs.joinpath(notes_dir, "projects"),
+                        title = project_note_title,
+                        command_name = "ProjectNote",
+                        window_config = function()
+                            return note_window_config(project_note_title())
+                        end,
+                        post_open = configure_note_buffer,
+                    },
+                },
+            })
+        end,
+    },
+    {
+        "MeanderingProgrammer/render-markdown.nvim",
+        ft = { "markdown" },
+        dependencies = {
+            "nvim-treesitter/nvim-treesitter",
+            "nvim-tree/nvim-web-devicons",
+        },
+        keys = {
+            { "<leader>mr", "<cmd>RenderMarkdown toggle<CR>", desc = "Toggle Markdown Render" },
+        },
+        opts = {
+            preset = "obsidian",
+            render_modes = { "n", "c", "t" },
+            file_types = { "markdown" },
+            completions = {
+                lsp = { enabled = true },
+            },
+        },
+    },
     -- Snacks
     {
         "folke/snacks.nvim",
@@ -1713,9 +1975,11 @@ require("lazy").setup({
                 "json",
                 "xml",
                 "markdown",
+                "markdown_inline",
                 "bash",
                 "python",
                 "html",
+                "yaml",
                 "javascript",
                 "typescript",
                 "css",
@@ -2047,6 +2311,24 @@ require("lazy").setup({
                     },
                 }),
             })
+
+            cmp.setup.filetype({ "sql", "mysql", "plsql", "sqlite" }, {
+                sources = cmp.config.sources({
+                    {
+                        name = "vim-dadbod-completion",
+                        group_index = 1,
+                    },
+                    {
+                        name = "buffer",
+                        group_index = 2,
+                        keyword_length = 2,
+                    },
+                    {
+                        name = "path",
+                        group_index = 2,
+                    },
+                }),
+            })
         end,
     },
     {
@@ -2249,13 +2531,21 @@ require("lazy").setup({
     {
         "kristijanhusak/vim-dadbod-ui",
         dependencies = {
-            { "tpope/vim-dadbod",                     lazy = true },
-            { "kristijanhusak/vim-dadbod-completion", ft = { "sql", "mysql", "plsql" }, lazy = true },
+            { "tpope/vim-dadbod",                     cmd = { "DB" }, ft = { "sql", "mysql", "plsql", "sqlite" }, lazy = true },
+            { "kristijanhusak/vim-dadbod-completion", ft = { "sql", "mysql", "plsql", "sqlite" }, lazy = true },
         },
         cmd = { "DBUI", "DBUIToggle", "DBUIAddConnection", "DBUIFindBuffer" },
         init = function()
             -- use nerd fonts for nice icons in DBUI
             vim.g.db_ui_use_nerd_fonts = 1
+            vim.g.db_ui_save_location = vim.fn.stdpath("data") .. "/dadbod_ui"
+            vim.g.dbs = vim.g.dbs or {}
+            vim.g.vim_dadbod_completion_mark = "[DB]"
+            vim.g.vim_dadbod_completion_lowercase_keywords = 1
+            vim.g.vim_dadbod_completion_source_limits = {
+                tables = 200,
+                columns = 300,
+            }
         end,
     },
     -- Code runner to execute files in an integrated terminal
@@ -2463,23 +2753,50 @@ local original_virtual_text_handler = vim.diagnostic.handlers.virtual_text
 local deduped_virtual_text_namespace = vim.api.nvim_create_namespace("deduped_virtual_text_diagnostics")
 local virtual_text_handler_opts = {}
 
-local function resolve_virtual_text_opts(bufnr, opts)
-    if type(opts) == "table" then
-        virtual_text_handler_opts[bufnr] = vim.deepcopy(opts)
-        return opts
+local function normalize_virtual_text_handler_opts(opts)
+    if type(opts) ~= "table" then
+        return nil
     end
 
-    local cached = virtual_text_handler_opts[bufnr]
-    if type(cached) == "table" then
-        return cached
+    if type(opts.virtual_text) == "table" then
+        return vim.deepcopy(opts)
+    end
+
+    if opts.virtual_text == true then
+        local resolved = vim.deepcopy(opts)
+        resolved.virtual_text = {}
+        return resolved
+    end
+
+    if opts.virtual_text ~= nil then
+        return nil
     end
 
     local config = vim.diagnostic.config()
-    if type(config.virtual_text) == "table" then
-        return config.virtual_text
+    local resolved = type(config) == "table" and vim.deepcopy(config) or {}
+    resolved.virtual_text = vim.deepcopy(opts)
+    return resolved
+end
+
+local function resolve_virtual_text_opts(bufnr, opts)
+    local resolved = normalize_virtual_text_handler_opts(opts)
+    if resolved then
+        virtual_text_handler_opts[bufnr] = resolved
+        return resolved
     end
 
-    return {}
+    local cached = virtual_text_handler_opts[bufnr]
+    if type(cached) == "table" and type(cached.virtual_text) == "table" then
+        return cached
+    end
+
+    resolved = normalize_virtual_text_handler_opts(vim.diagnostic.config())
+    if resolved then
+        virtual_text_handler_opts[bufnr] = resolved
+        return resolved
+    end
+
+    return nil
 end
 
 local function refresh_virtual_text(bufnr, opts)
@@ -2490,15 +2807,25 @@ local function refresh_virtual_text(bufnr, opts)
 
     original_virtual_text_handler.hide(deduped_virtual_text_namespace, resolved_bufnr)
 
+    local handler_opts = resolve_virtual_text_opts(resolved_bufnr, opts)
+    if not handler_opts then
+        return
+    end
+
+    local get_opts = {}
+    if handler_opts.virtual_text.severity then
+        get_opts.severity = handler_opts.virtual_text.severity
+    end
+
     -- Some servers publish identical messages for slightly different spans. Collapse those
     -- before rendering virtual text so the line only shows one inline diagnostic message.
-    local diagnostics = dedupe_virtual_text_diagnostics(resolved_bufnr, get_visible_diagnostics(resolved_bufnr))
+    local diagnostics = dedupe_virtual_text_diagnostics(resolved_bufnr, get_visible_diagnostics(resolved_bufnr, get_opts))
     if diagnostics and not vim.tbl_isempty(diagnostics) then
         original_virtual_text_handler.show(
             deduped_virtual_text_namespace,
             resolved_bufnr,
             diagnostics,
-            resolve_virtual_text_opts(resolved_bufnr, opts)
+            handler_opts
         )
     end
 end
@@ -3662,6 +3989,48 @@ vim.keymap.set("v", "<leader>sr", function()
 end, { desc = "Search and Replace Selection" })
 
 -- Database keymaps
+local function dbui_sqlite_label(file)
+    local label = vim.fn.fnamemodify(file, ":t:r")
+    local url = "sqlite:" .. file
+    if vim.g.dbs and vim.g.dbs[label] and vim.g.dbs[label] ~= url then
+        label = label .. " (" .. vim.fn.fnamemodify(file, ":h:t") .. ")"
+    end
+    return label
+end
+
+local function dbui_write_sqlite_view_query(label)
+    local save_root = vim.g.db_ui_save_location or (vim.fn.stdpath("data") .. "/dadbod_ui")
+    local save_dir = save_root .. "/" .. label
+    if vim.fn.isdirectory(save_dir) == 0 then
+        vim.fn.mkdir(save_dir, "p")
+    end
+
+    local view_query = save_dir .. "/Views.sql"
+    if vim.fn.filereadable(view_query) == 0 then
+        vim.fn.writefile({
+            "SELECT name AS view_name, sql AS definition",
+            "FROM sqlite_master",
+            "WHERE type = 'view'",
+            "ORDER BY name;",
+        }, view_query)
+    end
+end
+
+local function dbui_register_sqlite(file)
+    file = vim.fn.fnamemodify(file, ":p")
+    local label = dbui_sqlite_label(file)
+    local url = "sqlite:" .. file
+    vim.g.dbs = vim.g.dbs or {}
+    if vim.g.dbs[label] ~= url then
+        vim.g.dbs[label] = url
+        vim.g.db = url
+        vim.g.dbui_last_sqlite_url = url
+        dbui_write_sqlite_view_query(label)
+        pcall(vim.fn["db_ui#reset_state"])
+    end
+    return label, url
+end
+
 local function dbui_open_sqlite(opts)
     local file = opts and opts.file or vim.fn.expand("%:p")
     if file == "" then
@@ -3672,18 +4041,12 @@ local function dbui_open_sqlite(opts)
         vim.notify("Not a SQLite file", vim.log.levels.WARN)
         return
     end
-    local label = "sqlite:" .. vim.fn.fnamemodify(file, ":~")
-    vim.g.dbs = vim.g.dbs or {}
-    if vim.g.dbs[label] == nil then
-        vim.g.dbs[label] = "sqlite:" .. file
-    end
+    file = vim.fn.fnamemodify(file, ":p")
+    dbui_register_sqlite(file)
     if opts and opts.fullscreen then
         vim.cmd("tabnew")
     end
     vim.cmd("DBUI")
-    if opts and opts.wipe_buf and opts.buf and vim.api.nvim_buf_is_valid(opts.buf) then
-        vim.api.nvim_buf_delete(opts.buf, { force = true })
-    end
 end
 
 local function reveal_in_finder()
@@ -3710,23 +4073,161 @@ end
 
 vim.keymap.set("n", "<leader>qo", "<cmd>DBUI<CR>", { desc = "Open DBUI" })
 vim.keymap.set("n", "<leader>qO", function()
-    dbui_open_sqlite({ fullscreen = true, wipe_buf = true, buf = vim.api.nvim_get_current_buf() })
+    dbui_open_sqlite({ fullscreen = true, buf = vim.api.nvim_get_current_buf() })
 end, { desc = "Open DBUI (Fullscreen)" })
-vim.keymap.set("n", "<leader>qc", "<cmd>DBUIClose<CR>", { desc = "Close DBUI" })
+vim.keymap.set("n", "<leader>qc", "<cmd>DBUIToggle<CR>", { desc = "Toggle DBUI" })
 vim.keymap.set("n", "<leader>qr", "<cmd>DBUIRename<CR>", { desc = "Rename Connection" })
 vim.keymap.set("n", "<leader>qs", "<cmd>DBUISaveQuery<CR>", { desc = "Save Query" })
 vim.keymap.set("n", "<leader>qf", function()
-    local file = vim.fn.expand("%:p")
-    if file:match("%.sqlite$") or file:match("%.db$") then
-        require("sqlite").open(file)
-    else
-        vim.notify("Not a SQLite file", vim.log.levels.WARN)
-    end
+    dbui_open_sqlite({ buf = vim.api.nvim_get_current_buf() })
 end, { desc = "Open SQLite File" })
 vim.keymap.set("n", "<leader>rq", "<cmd>DB<CR>", { desc = "Run SQL Query" })
 vim.keymap.set("v", "<leader>rq", ":'<,'>DB<CR>", { desc = "Run SQL Query" })
 
 vim.keymap.set("n", "<leader>of", reveal_in_finder, { desc = "Reveal in Finder" })
+
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = { "sql", "mysql", "plsql", "sqlite" },
+    callback = function(args)
+        pcall(require("lazy").load, { plugins = { "vim-dadbod", "vim-dadbod-completion" } })
+        vim.bo[args.buf].omnifunc = "vim_dadbod_completion#omni"
+    end,
+})
+
+local tree_mode_file = vim.fn.stdpath("data") .. "/active-file-tree"
+
+local function read_file_tree_mode()
+    local mode = vim.fn.filereadable(tree_mode_file) == 1 and vim.fn.readfile(tree_mode_file)[1] or "mini.files"
+    if mode == "neo-tree" then
+        return mode
+    end
+    return "mini.files"
+end
+
+local function write_file_tree_mode(mode)
+    vim.fn.mkdir(vim.fn.fnamemodify(tree_mode_file, ":h"), "p")
+    vim.fn.writefile({ mode }, tree_mode_file)
+end
+
+local function close_mini_files()
+    pcall(function()
+        local mf = require("mini.files")
+        if mf.get_explorer_state() ~= nil then
+            mf.close()
+        end
+    end)
+end
+
+local function close_neo_tree()
+    pcall(vim.cmd, "Neotree close")
+end
+
+local file_tree_root_markers = {
+    ".git",
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "pyproject.toml",
+    "CMakeLists.txt",
+    "Makefile",
+    "*.sln",
+    "*.csproj",
+    "*.xcodeproj",
+    "*.xcworkspace",
+    "Package.swift",
+}
+
+local function current_normal_file()
+    local path = vim.api.nvim_buf_get_name(0)
+    if path == "" or vim.bo[0].buftype ~= "" then
+        return nil
+    end
+    return vim.fn.fnamemodify(path, ":p")
+end
+
+local function directory_for_file_tree_root()
+    local file = current_normal_file()
+    if file and vim.fn.filereadable(file) == 1 then
+        return vim.fn.fnamemodify(file, ":p:h")
+    end
+
+    local cwd = vim.fn.getcwd()
+    if cwd ~= "" then
+        return vim.fn.fnamemodify(cwd, ":p")
+    end
+
+    return vim.loop.cwd() or nil
+end
+
+local function file_tree_project_root()
+    local start = directory_for_file_tree_root()
+    if not start or start == "" then
+        return vim.fn.getcwd()
+    end
+
+    local root = vim.fs.root(start, file_tree_root_markers)
+    if root and root ~= "" then
+        return root
+    end
+
+    return start
+end
+
+local function toggle_mini_files()
+    close_neo_tree()
+    local mf = require("mini.files")
+    if mf.get_explorer_state() ~= nil then
+        mf.close()
+    else
+        mf.open(file_tree_project_root(), false)
+    end
+end
+
+local function toggle_neo_tree()
+    close_mini_files()
+    pcall(function()
+        require("lazy").load({ plugins = { "neo-tree.nvim" } })
+    end)
+    local file = current_normal_file()
+    local ok = pcall(function()
+        require("neo-tree.command").execute({
+            action = "focus",
+            toggle = true,
+            source = "filesystem",
+            position = "left",
+            dir = file_tree_project_root(),
+            reveal_file = file,
+        })
+    end)
+    if not ok then
+        vim.notify("neo-tree is not installed yet; run :Lazy sync, then use <leader>nT again", vim.log.levels.WARN)
+    end
+end
+
+local function toggle_active_file_tree()
+    if read_file_tree_mode() == "neo-tree" then
+        toggle_neo_tree()
+    else
+        toggle_mini_files()
+    end
+end
+
+vim.api.nvim_create_autocmd("User", {
+    pattern = "PersistenceLoadPost",
+    callback = function()
+        close_mini_files()
+        close_neo_tree()
+    end,
+})
+
+local function switch_file_tree()
+    local next_mode = read_file_tree_mode() == "neo-tree" and "mini.files" or "neo-tree"
+    write_file_tree_mode(next_mode)
+    close_mini_files()
+    close_neo_tree()
+    toggle_active_file_tree()
+    vim.notify("File tree: " .. next_mode, vim.log.levels.INFO)
+end
 
 -- Buffer navigation keymaps
 vim.keymap.set("n", "<leader>bn", "<cmd>bnext<CR>", { desc = "Next Buffer" })
@@ -3736,6 +4237,63 @@ vim.keymap.set("n", "<leader>bc", "<cmd>bdelete<CR>", { desc = "Close Buffer" })
 
 -- Window management keymaps
 -- These mappings mirror the defaults but with a leader prefix for convenience
+local window_resize_mode_keys = { "h", "j", "k", "l", "<Esc>", "q" }
+local window_resize_mode_buffers = {}
+
+local function resize_current_window(direction, amount)
+    amount = tonumber(amount) or 2
+    local commands = {
+        h = "vertical resize -" .. amount,
+        l = "vertical resize +" .. amount,
+        j = "resize -" .. amount,
+        k = "resize +" .. amount,
+    }
+    if commands[direction] then
+        vim.cmd(commands[direction])
+    end
+end
+
+local function exit_window_resize_mode(buf)
+    buf = buf or vim.api.nvim_get_current_buf()
+    if not window_resize_mode_buffers[buf] then
+        return
+    end
+    for _, lhs in ipairs(window_resize_mode_keys) do
+        pcall(vim.keymap.del, "n", lhs, { buffer = buf })
+    end
+    window_resize_mode_buffers[buf] = nil
+    vim.notify("Window resize mode off", vim.log.levels.INFO)
+end
+
+local function enter_window_resize_mode()
+    local buf = vim.api.nvim_get_current_buf()
+    if window_resize_mode_buffers[buf] then
+        return
+    end
+
+    window_resize_mode_buffers[buf] = true
+    local function map(lhs, rhs, desc)
+        vim.keymap.set("n", lhs, rhs, { buffer = buf, nowait = true, silent = true, desc = desc })
+    end
+
+    map("h", function() resize_current_window("h", vim.v.count1) end, "Shrink window width")
+    map("l", function() resize_current_window("l", vim.v.count1) end, "Grow window width")
+    map("j", function() resize_current_window("j", vim.v.count1) end, "Shrink window height")
+    map("k", function() resize_current_window("k", vim.v.count1) end, "Grow window height")
+    map("<Esc>", function() exit_window_resize_mode(buf) end, "Exit window resize mode")
+    map("q", function() exit_window_resize_mode(buf) end, "Exit window resize mode")
+
+    vim.api.nvim_create_autocmd("BufWipeout", {
+        buffer = buf,
+        once = true,
+        callback = function()
+            window_resize_mode_buffers[buf] = nil
+        end,
+    })
+
+    vim.notify("Window resize mode: h/l width, j/k height, counts work, Esc exits", vim.log.levels.INFO)
+end
+
 vim.keymap.set("n", "<leader>ww", "<C-w>w", { desc = "Next Window" })
 vim.keymap.set("n", "<leader>wh", "<C-w>h", { desc = "Left Window" })
 vim.keymap.set("n", "<leader>wj", "<C-w>j", { desc = "Down Window" })
@@ -3746,6 +4304,7 @@ vim.keymap.set("n", "<leader>wv", "<cmd>vsplit<CR>", { desc = "Vertical Split" }
 vim.keymap.set("n", "<leader>wq", "<C-w>q", { desc = "Close Window" })
 vim.keymap.set("n", "<leader>wo", "<C-w>o", { desc = "Only Window" })
 vim.keymap.set("n", "<leader>w=", "<C-w>=", { desc = "Balance Windows" })
+vim.keymap.set("n", "<leader>wm", enter_window_resize_mode, { desc = "Window Resize Mode" })
 -- Resize splits
 vim.keymap.set("n", "<leader>w<", "<C-w><", { desc = "Decrease window width" })
 vim.keymap.set("n", "<leader>w>", "<C-w>>", { desc = "Increase window width" })
@@ -3759,20 +4318,17 @@ wkr.add({
     -- File explorer
     { "<leader>e",  function() require("oil").open() end,                     desc = "File Explorer (Oil)", icon = { icon = " ", color = "cyan" } },
     { "<leader>;",  function() require("dropbar.api").pick() end,             desc = "Pick symbols in winbar", icon = { icon = "󰉺 ", color = "blue" } },
-    { "<leader>nt", function()
-        local mf = require("mini.files")
-        if mf.get_explorer_state() ~= nil then
-            mf.close()
-        else
-            mf.open(vim.fn.getcwd(), true)
-        end
-    end, desc = "Toggle mini.files", icon = { icon = "󰉓 ", color = "cyan" } },
+    { "<leader>nt", toggle_active_file_tree,                                  desc = "Toggle File Tree", icon = { icon = "󰉓 ", color = "cyan" } },
+    { "<leader>nT", switch_file_tree,                                         desc = "Switch File Tree", icon = { icon = "󰉓 ", color = "cyan" } },
     -- Colors
     { "<leader>c",  group = "Colors",                                           icon = { icon = " ", color = "purple" } },
     { "<leader>cc", choose_catppuccin_flavour,                                desc = "Choose Colour Theme" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
     -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
-    { "<leader>n",  group = "Notifications",                                    icon = { icon = "󰵅 ", color = "blue" } },
+    { "<leader>n",  group = "Notes/Notifications",                              icon = { icon = "󰎞 ", color = "blue" } },
+    { "<leader>ng", desc = "Global Note" },
+    { "<leader>np", desc = "Project Note" },
+    { "<leader>nm", desc = "Note Move Mode" },
     { "<leader>t",  group = "Tasks/Terminal",                                   icon = { icon = " ", color = "yellow" } },
     { "<leader>u",  group = "UI/Toggles",                                       icon = { icon = " ", color = "yellow" } },
     -- Open
@@ -3830,6 +4386,7 @@ wkr.add({
     { "<leader>wq", "<C-w>q",                                                 desc = "Close Window" },
     { "<leader>wo", "<C-w>o",                                                 desc = "Only Window" },
     { "<leader>w=", "<C-w>=",                                                 desc = "Balance Windows" },
+    { "<leader>wm", enter_window_resize_mode,                                  desc = "Window Resize Mode" },
     { "<leader>w<", "<C-w><",                                                 desc = "Decrease window width" },
     { "<leader>w>", "<C-w>>",                                                 desc = "Increase window width" },
     { "<leader>w-", "<C-w>-",                                                 desc = "Decrease window height" },
@@ -3907,27 +4464,21 @@ wkr.add({
     { "<leader>qo", "<cmd>DBUI<CR>",                                               desc = "Open DBUI" },
     {
         "<leader>qO",
-        function() dbui_open_sqlite({ fullscreen = true, wipe_buf = true, buf = vim.api.nvim_get_current_buf() }) end,
+        function() dbui_open_sqlite({ fullscreen = true, buf = vim.api.nvim_get_current_buf() }) end,
         desc = "Open DBUI (Fullscreen)"
     },
-    { "<leader>qc", "<cmd>DBUIClose<CR>",     desc = "Close DBUI" },
+    { "<leader>qc", "<cmd>DBUIToggle<CR>",    desc = "Toggle DBUI" },
     { "<leader>qr", "<cmd>DBUIRename<CR>",    desc = "Rename Connection" },
     { "<leader>qs", "<cmd>DBUISaveQuery<CR>", desc = "Save Query" },
     {
         "<leader>qf",
-        function()
-            local file = vim.fn.expand("%:p")
-            if file:match("%.sqlite$") or file:match("%.db$") then
-                require("sqlite").open(file)
-            else
-                vim.notify("Not a SQLite file", vim.log.levels.WARN)
-            end
-        end,
+        function() dbui_open_sqlite({ buf = vim.api.nvim_get_current_buf() }) end,
         desc = "Open SQLite File"
     },
     -- Markdown
     { "<leader>m",  group = "Markdown",                                         icon = { icon = " ", color = "blue" } },
     { "<leader>mp", "<cmd>MarkdownPreviewToggle<CR>",                  desc = "MD Preview" },
+    { "<leader>mr", desc = "Toggle Markdown Render" },
     -- Folding
     { "zR",         function() require("ufo").openAllFolds() end,      desc = "Open all folds" },
     { "zM",         function() require("ufo").closeAllFolds() end,     desc = "Close all folds" },
@@ -4004,11 +4555,26 @@ vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga finder<CR>", { desc = "LSP Finde
 -- Dotnet running
 vim.keymap.set("n", "<leader>rd", "<cmd>Dotnet run<CR>", { desc = "Dotnet Run Project" })
 
--- Auto-open SQLite files in DBUI and close the raw buffer
-vim.api.nvim_create_autocmd("BufReadPost", {
+-- Route SQLite files through DBUI before Neovim reads the binary database.
+vim.api.nvim_create_autocmd("BufReadCmd", {
     pattern = { "*.sqlite", "*.db", "*.sqlite3", "*.db3" },
     callback = function(args)
-        dbui_open_sqlite({ fullscreen = true, wipe_buf = true, buf = args.buf, file = args.file })
+        local file = args.file
+        local buf = args.buf
+        if vim.api.nvim_buf_is_valid(buf) then
+            vim.bo[buf].buftype = "nofile"
+            vim.bo[buf].bufhidden = "wipe"
+            vim.bo[buf].swapfile = false
+            vim.bo[buf].modifiable = true
+            vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+                "SQLite database opened in DBUI:",
+                vim.fn.fnamemodify(file, ":p"),
+            })
+            vim.bo[buf].modifiable = false
+        end
+        vim.schedule(function()
+            dbui_open_sqlite({ buf = buf, file = file })
+        end)
     end,
 })
 
@@ -4272,14 +4838,8 @@ local function pick_close_buffer()
     require("bufferline.pick").choose_then(close_buffer_force)
 end
 
-vim.keymap.set("n", "<leader>nt", function()
-    local mf = require("mini.files")
-    if mf.get_explorer_state() ~= nil then
-        mf.close()
-    else
-        mf.open(vim.fn.getcwd(), true)
-    end
-end, { desc = "Toggle mini.files" })
+vim.keymap.set("n", "<leader>nt", toggle_active_file_tree, { desc = "Toggle File Tree" })
+vim.keymap.set("n", "<leader>nT", switch_file_tree, { desc = "Switch File Tree" })
 
 vim.api.nvim_create_autocmd("VimEnter", {
     callback = function()
