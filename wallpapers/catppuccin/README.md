@@ -9,5 +9,4 @@ Expected files include:
 - Catppuccin Apple (Frappe).png
 - Catppuccin Apple (Latte).png
 
-The sparse GitHub clone was created in `/tmp/manjaro-stuff-wallpapers`, but the
-blob checkout was blocked before these files could be copied here.
+The local copies were fetched from the upstream `wallpapers/Catpuccin` folder.
