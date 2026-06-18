@@ -99,6 +99,10 @@ if.app-id = 'com.apple.systempreferences'
 run = 'layout floating'
 
 [[on-window-detected]]
+if.app-id = 'com.apple.systemsettings'
+run = 'layout floating'
+
+[[on-window-detected]]
 if.app-id = 'com.apple.finder'
 if.window-title-regex-substring = 'Copy|Move|Info|Preferences'
 run = 'layout floating'

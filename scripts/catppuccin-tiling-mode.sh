@@ -15,8 +15,11 @@ DEFAULT_OPACITY="${CATPPUCCIN_TILING_OPACITY:-70}"
 mkdir -p "$STATE_DIR" "$SKETCHYBAR_DIR"
 
 normalise_flavour() {
-  case "${1,,}" in
-    latte|frappe|macchiato|mocha) printf '%s\n' "${1,,}" ;;
+  local value
+  value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+
+  case "$value" in
+    latte|frappe|macchiato|mocha) printf '%s\n' "$value" ;;
     catppuccin-latte) printf 'latte\n' ;;
     catppuccin-frappe) printf 'frappe\n' ;;
     catppuccin-macchiato) printf 'macchiato\n' ;;
@@ -88,7 +91,12 @@ reload_sketchybar() {
 }
 
 current_wallpaper() {
-  osascript -e 'tell application "System Events" to tell desktop 1 to get picture' 2>/dev/null || true
+  local wallpaper
+  wallpaper="$(osascript -e 'tell application "System Events" to tell desktop 1 to get picture' 2>/dev/null || true)"
+
+  if [[ -n "$wallpaper" && "$wallpaper" != "missing value" && -f "$wallpaper" ]]; then
+    printf '%s\n' "$wallpaper"
+  fi
 }
 
 wallpaper_for_flavour() {
