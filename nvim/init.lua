@@ -67,6 +67,8 @@ local kitty_config_file = vim.fn.expand("~/.config/kitty/kitty.conf")
 local kitty_current_theme_file = vim.fn.expand("~/.config/kitty/current-theme.conf")
 local ricing_control_script = vim.fn.expand("~/.config/scripts/catppuccin-tiling-mode.sh")
 local kitty_opacity_script = vim.fn.expand("~/.config/scripts/kitty-opacity.sh")
+local sketchyvim_toggle_script = vim.fn.expand("~/.config/scripts/sketchyvim-toggle.sh")
+local jankyborders_script = vim.fn.expand("~/.config/scripts/jankyborders.sh")
 
 local function normalize_catppuccin_flavour(flavour)
     if type(flavour) ~= "string" then
@@ -1005,6 +1007,38 @@ local function restore_desktop_mode()
     vim.notify("Desktop mode restored", vim.log.levels.INFO)
 end
 
+local function toggle_sketchyvim()
+    if vim.fn.executable(sketchyvim_toggle_script) ~= 1 then
+        vim.notify("SketchyVim toggle script not found: " .. sketchyvim_toggle_script, vim.log.levels.WARN)
+        return
+    end
+
+    local output = vim.fn.system({ sketchyvim_toggle_script, "toggle" })
+    if vim.v.shell_error ~= 0 then
+        vim.notify("SketchyVim toggle failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
+        return
+    end
+
+    local status = vim.fn.system({ sketchyvim_toggle_script, "status" })
+    vim.notify("SketchyVim " .. vim.trim(status or "toggled"), vim.log.levels.INFO)
+end
+
+local function toggle_jankyborders()
+    if vim.fn.executable(jankyborders_script) ~= 1 then
+        vim.notify("JankyBorders script not found: " .. jankyborders_script, vim.log.levels.WARN)
+        return
+    end
+
+    local output = vim.fn.system({ jankyborders_script, "toggle" })
+    if vim.v.shell_error ~= 0 then
+        vim.notify("JankyBorders toggle failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
+        return
+    end
+
+    local status = vim.fn.system({ jankyborders_script, "status" })
+    vim.notify("JankyBorders " .. vim.trim(status or "toggled"), vim.log.levels.INFO)
+end
+
 vim.g.color_theme = normalize_color_theme_id(read_color_theme_id() or COLOR_THEME_DEFAULT)
 vim.g.catppuccin_flavour = normalize_catppuccin_flavour(
     (get_color_theme_spec(vim.g.color_theme) or {}).catppuccin or CATPPUCCIN_DEFAULT_THEME
@@ -1034,6 +1068,12 @@ vim.api.nvim_create_user_command("CatppuccinTilingMode", enter_catppuccin_tiling
 })
 vim.api.nvim_create_user_command("CatppuccinTilingRestore", restore_desktop_mode, {
     desc = "Restore desktop mode",
+})
+vim.api.nvim_create_user_command("SketchyVimToggle", toggle_sketchyvim, {
+    desc = "Toggle SketchyVim service",
+})
+vim.api.nvim_create_user_command("JankyBordersToggle", toggle_jankyborders, {
+    desc = "Toggle JankyBorders",
 })
 
 
@@ -2651,10 +2691,9 @@ require("lazy").setup({
         dependencies = { "mfussenegger/nvim-dap", "nvim-neotest/nvim-nio" },
         config = function()
             local dap, dapui = require("dap"), require("dapui")
-            dapui.setup()
-            dap.listeners.after.event_initialized["dapui_config"] = function() dapui.open() end
-            dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close() end
-            dap.listeners.before.event_exited["dapui_config"] = function() dapui.close() end
+            local debug_workbench = require("debug_workbench")
+            dapui.setup(debug_workbench.dapui_config())
+            debug_workbench.setup(dap)
         end,
     },
     { "ThePrimeagen/refactoring.nvim", config = function() require("refactoring").setup({}) end },
@@ -4144,6 +4183,8 @@ vim.keymap.set("n", "<leader>fh", function() require("telescope.builtin").help_t
 vim.keymap.set("n", "<leader>ft", "<cmd>TodoTelescope<CR>", { silent = true, desc = "TODOs" })
 vim.keymap.set("n", "<leader>cc", choose_catppuccin_flavour, { silent = true, desc = "Choose Colour Theme" })
 vim.keymap.set("n", "<leader>co", prompt_kitty_opacity, { silent = true, desc = "Kitty Opacity" })
+vim.keymap.set("n", "<leader>cb", toggle_jankyborders, { silent = true, desc = "Toggle JankyBorders" })
+vim.keymap.set("n", "<leader>cs", toggle_sketchyvim, { silent = true, desc = "Toggle SketchyVim" })
 vim.keymap.set("n", "<leader>ct", enter_catppuccin_tiling_mode, { silent = true, desc = "Catppuccin Tiling Mode" })
 vim.keymap.set("n", "<leader>cT", restore_desktop_mode, { silent = true, desc = "Restore Desktop Mode" })
 
@@ -4217,11 +4258,22 @@ vim.keymap.set("n", "<leader>xM", xcode_test_macos, { silent = true, desc = "Xco
 
 -- Debugging (DAP)
 local dap = require("dap")
+local debug_workbench = require("debug_workbench")
 vim.keymap.set("n", "<F5>", dap.continue, { desc = "Debug Continue" })
 vim.keymap.set("n", "<F10>", dap.step_over, { desc = "Debug Step Over" })
 vim.keymap.set("n", "<F11>", dap.step_into, { desc = "Debug Step Into" })
 vim.keymap.set("n", "<F12>", dap.step_out, { desc = "Debug Step Out" })
 vim.keymap.set("n", "<leader>db", dap.toggle_breakpoint, { desc = "Toggle Breakpoint" })
+vim.keymap.set("n", "<leader>du", debug_workbench.toggle_workbench, { desc = "Debug Workbench" })
+vim.keymap.set("n", "<leader>dU", debug_workbench.close_workbench, { desc = "Close Debug Workbench" })
+vim.keymap.set("n", "<leader>dT", debug_workbench.toggle_terminal, { desc = "Debug Terminal" })
+vim.keymap.set("n", "<leader>dm", debug_workbench.terminal_resize_mode, { desc = "Move/Resize Debug Terminal" })
+vim.keymap.set("n", "<leader>dr", debug_workbench.toggle_resource_panel, { desc = "Debug Resources" })
+vim.keymap.set("n", "<leader>dl", debug_workbench.toggle_resource_log, { desc = "Log Debug Resources" })
+vim.keymap.set("n", "<leader>ds", debug_workbench.take_resource_snapshot, { desc = "Debug Resource Snapshot" })
+vim.keymap.set("n", "<leader>dp", debug_workbench.prompt_resource_pid, { desc = "Set Debug Resource PID" })
+vim.keymap.set("n", "<leader>dH", debug_workbench.check_adapters, { desc = "Debug Adapter Health" })
+vim.keymap.set("n", "<leader>dt", dap.terminate, { desc = "Terminate Debug" })
 
 -- Refactoring
 vim.keymap.set({ "n", "x" }, "<leader>re", function() require("refactoring").refactor("Extract Function") end,
@@ -4613,6 +4665,8 @@ wkr.add({
     { "<leader>c",  group = "Colors",                                           icon = { icon = " ", color = "purple" } },
     { "<leader>cc", choose_catppuccin_flavour,                                desc = "Choose Colour Theme" },
     { "<leader>co", prompt_kitty_opacity,                                     desc = "Kitty Opacity" },
+    { "<leader>cb", toggle_jankyborders,                                      desc = "Toggle JankyBorders" },
+    { "<leader>cs", toggle_sketchyvim,                                        desc = "Toggle SketchyVim" },
     { "<leader>ct", enter_catppuccin_tiling_mode,                             desc = "Catppuccin Tiling Mode" },
     { "<leader>cT", restore_desktop_mode,                                     desc = "Restore Desktop Mode" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
@@ -4781,6 +4835,20 @@ wkr.add({
     { "<leader>do", function() require("dap").step_over() end,         desc = "Step Over" },
     { "<leader>di", function() require("dap").step_into() end,         desc = "Step Into" },
     { "<leader>dO", function() require("dap").step_out() end,          desc = "Step Out" },
+    { "<leader>dt", function() require("dap").terminate() end,         desc = "Terminate Debug" },
+    { "<leader>du", function() require("debug_workbench").toggle_workbench() end, desc = "Debug Workbench" },
+    { "<leader>dU", function() require("debug_workbench").close_workbench() end,  desc = "Close Debug Workbench" },
+    { "<leader>dT", function() require("debug_workbench").toggle_terminal() end,  desc = "Debug Terminal" },
+    {
+        "<leader>dm",
+        function() require("debug_workbench").terminal_resize_mode() end,
+        desc = "Move/Resize Debug Terminal",
+    },
+    { "<leader>dr", function() require("debug_workbench").toggle_resource_panel() end, desc = "Debug Resources" },
+    { "<leader>dl", function() require("debug_workbench").toggle_resource_log() end,   desc = "Log Debug Resources" },
+    { "<leader>ds", function() require("debug_workbench").take_resource_snapshot() end, desc = "Debug Resource Snapshot" },
+    { "<leader>dp", function() require("debug_workbench").prompt_resource_pid() end,    desc = "Set Debug Resource PID" },
+    { "<leader>dH", function() require("debug_workbench").check_adapters() end,         desc = "Debug Adapter Health" },
     -- Utilities
     { "<leader>z",  group = "Folds",                                            icon = { icon = "󰘖 ", color = "yellow" } },
     { "z<leader>a", desc = "Toggle Fold" },
@@ -5027,70 +5095,7 @@ vim.keymap.set("n", "<leader>bh", function() _split_with_other("h") end, { desc 
 -- DAP adapters (simple + Mason-compatible)
 local dap_ok, dap_mod = pcall(require, "dap")
 if dap_ok then
-    -- codelldb (C / C++ / Rust)
-    dap_mod.adapters.codelldb = {
-        type = "server",
-        port = "${port}",
-        executable = {
-            command = "codelldb", -- Mason puts this on PATH
-            args = { "--port", "${port}" },
-        },
-    }
-    dap_mod.configurations.cpp = {
-        {
-            name = "Debug (codelldb)",
-            type = "codelldb",
-            request = "launch",
-            program = function()
-                return vim.fn.input(
-                    "Path to executable: ",
-                    vim.fn.getcwd() .. "/",
-                    "file"
-                )
-            end,
-            cwd = "${workspaceFolder}",
-            stopOnEntry = false,
-        },
-    }
-    dap_mod.configurations.c = dap_mod.configurations.cpp
-    -- netcoredbg (.NET)
-    dap_mod.adapters.coreclr = {
-        type = "executable",
-        command = "netcoredbg", -- Mason puts this on PATH
-        args = { "--interpreter=vscode" },
-    }
-    dap_mod.configurations.cs = {
-        {
-            name = "Debug (.NET)",
-            type = "coreclr",
-            request = "launch",
-            program = function()
-                return vim.fn.input(
-                    "Path to dll: ",
-                    vim.fn.getcwd() .. "/bin/Debug/",
-                    "file"
-                )
-            end,
-        },
-    }
-    vim.fn.sign_define("DapBreakpoint", {
-        text = "●",
-        texthl = "DiagnosticError",
-        linehl = "",
-        numhl = "",
-    })
-    vim.fn.sign_define("DapBreakpointCondition", {
-        text = "●",
-        texthl = "DiagnosticWarn",
-        linehl = "",
-        numhl = "",
-    })
-    vim.fn.sign_define("DapLogPoint", {
-        text = "◆",
-        texthl = "DiagnosticInfo",
-        linehl = "",
-        numhl = "",
-    })
+    require("debug_workbench").setup_adapters(dap_mod)
 end
 
 -- Folding

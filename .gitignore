@@ -1,1 +1,4 @@
 .DS_Store
+
+sketchybar/helpers/menus/bin/
+sketchybar/helpers/event_providers/*/bin/

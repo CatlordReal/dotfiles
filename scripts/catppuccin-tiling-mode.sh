@@ -7,12 +7,15 @@ FLAVOUR="${2:-mocha}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 STATE_DIR="$CONFIG_HOME/ricing"
 SKETCHYBAR_DIR="$CONFIG_HOME/sketchybar"
+SKETCHYBAR_ACTIVE_THEME="$SKETCHYBAR_DIR/helpers/active_theme.txt"
 WALLPAPER_DIR="$CONFIG_HOME/wallpapers/catppuccin"
 KITTY_CONFIG="$CONFIG_HOME/kitty/kitty.conf"
 KITTY_OPACITY_SCRIPT="$CONFIG_HOME/scripts/kitty-opacity.sh"
+JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
+SKETCHYVIM_SCRIPT="$CONFIG_HOME/scripts/sketchyvim-toggle.sh"
 DEFAULT_OPACITY="${CATPPUCCIN_TILING_OPACITY:-70}"
 
-mkdir -p "$STATE_DIR" "$SKETCHYBAR_DIR"
+mkdir -p "$STATE_DIR" "$SKETCHYBAR_DIR" "$SKETCHYBAR_DIR/helpers"
 
 normalise_flavour() {
   local value
@@ -87,6 +90,7 @@ EOF
 reload_sketchybar() {
   command -v sketchybar >/dev/null 2>&1 || return 0
   pgrep -x sketchybar >/dev/null 2>&1 || return 0
+  sketchybar --trigger catppuccin_theme_changed >/dev/null 2>&1 || true
   sketchybar --reload >/dev/null 2>&1 || true
 }
 
@@ -158,8 +162,11 @@ save_state_once() {
 mark_state() {
   local active="$1"
   local flavour="$2"
+  local normalised
+  normalised="$(normalise_flavour "$flavour")"
   printf '%s\n' "$active" > "$STATE_DIR/active"
-  printf '%s\n' "$(normalise_flavour "$flavour")" > "$STATE_DIR/theme"
+  printf '%s\n' "$normalised" > "$STATE_DIR/theme"
+  printf '%s\n' "$normalised" > "$SKETCHYBAR_ACTIVE_THEME"
 }
 
 apply_mode() {
@@ -179,6 +186,10 @@ apply_mode() {
   set_desktop_icons false
   "$KITTY_OPACITY_SCRIPT" "$DEFAULT_OPACITY" >/dev/null
   mark_state 1 "$flavour"
+  if [[ "$(cat "$STATE_DIR/jankyborders_enabled" 2>/dev/null || printf '1')" == "1" ]]; then
+    "$JANKYBORDERS_SCRIPT" apply "$flavour" >/dev/null 2>&1 || true
+  fi
+  "$SKETCHYVIM_SCRIPT" apply >/dev/null 2>&1 || true
   reload_sketchybar
 }
 
@@ -207,6 +218,8 @@ restore_mode() {
   fi
 
   mark_state 0 "$FLAVOUR"
+  "$JANKYBORDERS_SCRIPT" off >/dev/null 2>&1 || true
+  "$SKETCHYVIM_SCRIPT" suspend >/dev/null 2>&1 || true
   reload_sketchybar
 }
 
@@ -219,6 +232,10 @@ case "$ACTION" in
     ;;
   colors)
     write_sketchybar_colors "$FLAVOUR"
+    mark_state "$(cat "$STATE_DIR/active" 2>/dev/null || printf '0')" "$FLAVOUR"
+    if [[ "$(cat "$STATE_DIR/jankyborders_enabled" 2>/dev/null || printf '1')" == "1" ]]; then
+      "$JANKYBORDERS_SCRIPT" apply "$FLAVOUR" >/dev/null 2>&1 || true
+    fi
     reload_sketchybar
     ;;
   *)

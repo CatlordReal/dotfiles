@@ -4,7 +4,11 @@
 config-version = 2
 
 start-at-login = false
-after-startup-command = ['exec-and-forget sketchybar']
+after-startup-command = [
+  'exec-and-forget sketchybar',
+  'exec-and-forget /Users/kianconti/.config/scripts/jankyborders.sh apply',
+  'exec-and-forget /Users/kianconti/.config/scripts/sketchyvim-toggle.sh apply',
+]
 exec-on-workspace-change = ['/bin/bash', '-c', 'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE']
 
 enable-normalization-flatten-containers = true
