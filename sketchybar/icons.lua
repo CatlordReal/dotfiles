@@ -9,6 +9,8 @@ local icons = {
     cpu = "􀫥",
     memory = "􀫦",
     clipboard = "􀉄",
+    brightness = "􀆫",
+    weather = "􀇔",
 
     switch = {
       on = "􁏮",
@@ -44,6 +46,8 @@ local icons = {
     cpu = "",
     memory = "",
     clipboard = "Missing Icon",
+    brightness = "󰃞",
+    weather = "",
 
     switch = {
       on = "󱨥",

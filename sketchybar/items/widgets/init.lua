@@ -1,5 +1,7 @@
 require("items.widgets.volume")
+require("items.widgets.brightness")
 require("items.widgets.wifi")
+require("items.widgets.weather")
 require("items.widgets.memory")
 require("items.widgets.cpu")
 require("items.widgets.sketchyvim")

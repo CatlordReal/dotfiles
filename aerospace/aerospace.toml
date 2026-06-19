@@ -50,10 +50,15 @@ alt-shift-l = 'move right'
 
 alt-minus = 'resize smart -50'
 alt-equal = 'resize smart +50'
+alt-shift-minus = 'resize smart -100'
+alt-shift-equal = 'resize smart +100'
 alt-f = 'fullscreen'
 alt-shift-space = 'layout floating tiling'
 alt-slash = 'layout tiles horizontal vertical'
 alt-comma = 'layout accordion horizontal vertical'
+alt-v = 'split vertical'
+alt-b = 'split horizontal'
+alt-shift-b = 'balance-sizes'
 
 alt-1 = 'workspace 1'
 alt-2 = 'workspace 2'
@@ -84,6 +89,8 @@ esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main']
 b = ['balance-sizes', 'mode main']
 f = ['layout floating tiling', 'mode main']
+v = ['split vertical', 'mode main']
+s = ['split horizontal', 'mode main']
 backspace = ['close-all-windows-but-current', 'mode main']
 
 h = ['resize width -50', 'mode service']
