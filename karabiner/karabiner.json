@@ -4,20 +4,63 @@
             "complex_modifications": {
                 "rules": [
                     {
-                        "description": "Caps Lock → Escape in Alacritty and Kitty",
+                        "description": "Caps Lock taps Escape, holds Hyper",
                         "manipulators": [
                             {
-                                "conditions": [
+                                "from": {
+                                    "key_code": "caps_lock",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "parameters": {
+                                    "basic.to_if_alone_timeout_milliseconds": 180,
+                                    "basic.to_if_held_down_threshold_milliseconds": 180
+                                },
+                                "to_if_alone": [
                                     {
-                                        "bundle_identifiers": [
-                                            "^org\\.alacritty$",
-                                            "^net\\.kovidgoyal\\.kitty$"
-                                        ],
-                                        "type": "frontmost_application_if"
+                                        "key_code": "escape"
                                     }
                                 ],
-                                "from": { "key_code": "caps_lock" },
-                                "to": [{ "key_code": "escape" }],
+                                "to_if_held_down": [
+                                    {
+                                        "key_code": "left_shift",
+                                        "modifiers": [
+                                            "left_command",
+                                            "left_control",
+                                            "left_option"
+                                        ]
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper-T toggles Catppuccin tiling session",
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "t",
+                                    "modifiers": {
+                                        "mandatory": [
+                                            "left_control",
+                                            "left_option",
+                                            "left_command",
+                                            "left_shift"
+                                        ],
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "shell_command": "/Users/kianconti/.config/scripts/catppuccin-session.sh toggle"
+                                    }
+                                ],
                                 "type": "basic"
                             }
                         ]
