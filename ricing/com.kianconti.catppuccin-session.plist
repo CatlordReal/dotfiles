@@ -4,21 +4,21 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.kianconti.sketchybar</string>
+  <string>com.kianconti.catppuccin-session</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/sketchybar</string>
+    <string>/Users/kianconti/.config/scripts/catppuccin-session.sh</string>
+    <string>startup</string>
   </array>
+
+  <key>RunAtLoad</key>
+  <true/>
 
   <key>EnvironmentVariables</key>
   <dict>
-    <key>LANG</key>
-    <string>en_US.UTF-8</string>
-    <key>LC_ALL</key>
-    <string>en_US.UTF-8</string>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>HOME</key>
     <string>/Users/kianconti</string>
     <key>USER</key>
@@ -27,14 +27,9 @@
     <string>kianconti</string>
   </dict>
 
-  <key>RunAtLoad</key>
-  <false/>
-  <key>KeepAlive</key>
-  <false/>
-
   <key>StandardOutPath</key>
-  <string>/tmp/sketchybar.out.log</string>
+  <string>/tmp/catppuccin-session.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/sketchybar.err.log</string>
+  <string>/tmp/catppuccin-session.err.log</string>
 </dict>
 </plist>

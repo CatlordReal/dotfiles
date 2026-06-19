@@ -66,6 +66,7 @@ local color_theme_favorites_file = vim.fn.stdpath("state") .. "/color_theme_favo
 local kitty_config_file = vim.fn.expand("~/.config/kitty/kitty.conf")
 local kitty_current_theme_file = vim.fn.expand("~/.config/kitty/current-theme.conf")
 local ricing_control_script = vim.fn.expand("~/.config/scripts/catppuccin-tiling-mode.sh")
+local catppuccin_session_script = vim.fn.expand("~/.config/scripts/catppuccin-session.sh")
 local kitty_opacity_script = vim.fn.expand("~/.config/scripts/kitty-opacity.sh")
 local sketchyvim_toggle_script = vim.fn.expand("~/.config/scripts/sketchyvim-toggle.sh")
 local jankyborders_script = vim.fn.expand("~/.config/scripts/jankyborders.sh")
@@ -517,7 +518,7 @@ local function sync_desktop_theme(theme_id, opts)
         return
     end
 
-    if vim.fn.executable(ricing_control_script) ~= 1 then
+    if vim.fn.executable(catppuccin_session_script) ~= 1 and vim.fn.executable(ricing_control_script) ~= 1 then
         return
     end
 
@@ -528,7 +529,14 @@ local function sync_desktop_theme(theme_id, opts)
 
     local action = (spec.kind == "catppuccin") and "apply" or "restore"
     local target = spec.catppuccin or spec.id
-    local output = vim.fn.system({ ricing_control_script, action, target })
+    local command
+    if vim.fn.executable(catppuccin_session_script) == 1 then
+        command = { catppuccin_session_script, spec.kind == "catppuccin" and "on" or "off", target }
+    else
+        command = { ricing_control_script, action, target }
+    end
+
+    local output = vim.fn.system(command)
     if vim.v.shell_error ~= 0 then
         local message = vim.trim(output or "")
         if message == "" then
@@ -993,18 +1001,36 @@ local function enter_catppuccin_tiling_mode()
 end
 
 local function restore_desktop_mode()
-    if vim.fn.executable(ricing_control_script) ~= 1 then
-        vim.notify("Ricing control script not found: " .. ricing_control_script, vim.log.levels.WARN)
+    local script = vim.fn.executable(catppuccin_session_script) == 1 and catppuccin_session_script or ricing_control_script
+    if vim.fn.executable(script) ~= 1 then
+        vim.notify("Ricing control script not found: " .. script, vim.log.levels.WARN)
         return
     end
 
-    local output = vim.fn.system({ ricing_control_script, "restore", vim.g.color_theme or COLOR_THEME_DEFAULT })
+    local action = script == catppuccin_session_script and "off" or "restore"
+    local output = vim.fn.system({ script, action, vim.g.color_theme or COLOR_THEME_DEFAULT })
     if vim.v.shell_error ~= 0 then
         vim.notify("Desktop restore failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
         return
     end
 
     vim.notify("Desktop mode restored", vim.log.levels.INFO)
+end
+
+local function toggle_catppuccin_session()
+    if vim.fn.executable(catppuccin_session_script) ~= 1 then
+        vim.notify("Catppuccin session script not found: " .. catppuccin_session_script, vim.log.levels.WARN)
+        return
+    end
+
+    local output = vim.fn.system({ catppuccin_session_script, "toggle" })
+    if vim.v.shell_error ~= 0 then
+        vim.notify("Catppuccin session toggle failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
+        return
+    end
+
+    local status = vim.fn.system({ catppuccin_session_script, "status" })
+    vim.notify("Catppuccin session " .. vim.trim(status or "toggled"), vim.log.levels.INFO)
 end
 
 local function toggle_sketchyvim()
@@ -1068,6 +1094,9 @@ vim.api.nvim_create_user_command("CatppuccinTilingMode", enter_catppuccin_tiling
 })
 vim.api.nvim_create_user_command("CatppuccinTilingRestore", restore_desktop_mode, {
     desc = "Restore desktop mode",
+})
+vim.api.nvim_create_user_command("CatppuccinSessionToggle", toggle_catppuccin_session, {
+    desc = "Toggle full Catppuccin tiling session",
 })
 vim.api.nvim_create_user_command("SketchyVimToggle", toggle_sketchyvim, {
     desc = "Toggle SketchyVim service",
@@ -1808,6 +1837,7 @@ require("lazy").setup({
             { "<leader>uC",      function() Snacks.picker.colorschemes() end,                            desc = "Colorschemes" },
             { "<leader>cc",      choose_catppuccin_flavour,                                              desc = "Choose Colour Theme" },
             { "<leader>co",      prompt_kitty_opacity,                                                   desc = "Kitty Opacity" },
+            { "<leader>cS",      toggle_catppuccin_session,                                             desc = "Toggle Catppuccin Session" },
             { "<leader>ct",      enter_catppuccin_tiling_mode,                                           desc = "Catppuccin Tiling Mode" },
             { "<leader>cT",      restore_desktop_mode,                                                   desc = "Restore Desktop Mode" },
             -- LSP
@@ -2933,6 +2963,7 @@ vim.schedule(function()
     apply_color_theme(vim.g.color_theme, {
         persist = false,
         sync_kitty = false,
+        sync_desktop = false,
         reload_kitty = false,
     })
 end)
@@ -4185,6 +4216,7 @@ vim.keymap.set("n", "<leader>cc", choose_catppuccin_flavour, { silent = true, de
 vim.keymap.set("n", "<leader>co", prompt_kitty_opacity, { silent = true, desc = "Kitty Opacity" })
 vim.keymap.set("n", "<leader>cb", toggle_jankyborders, { silent = true, desc = "Toggle JankyBorders" })
 vim.keymap.set("n", "<leader>cs", toggle_sketchyvim, { silent = true, desc = "Toggle SketchyVim" })
+vim.keymap.set("n", "<leader>cS", toggle_catppuccin_session, { silent = true, desc = "Toggle Catppuccin Session" })
 vim.keymap.set("n", "<leader>ct", enter_catppuccin_tiling_mode, { silent = true, desc = "Catppuccin Tiling Mode" })
 vim.keymap.set("n", "<leader>cT", restore_desktop_mode, { silent = true, desc = "Restore Desktop Mode" })
 
@@ -4667,6 +4699,7 @@ wkr.add({
     { "<leader>co", prompt_kitty_opacity,                                     desc = "Kitty Opacity" },
     { "<leader>cb", toggle_jankyborders,                                      desc = "Toggle JankyBorders" },
     { "<leader>cs", toggle_sketchyvim,                                        desc = "Toggle SketchyVim" },
+    { "<leader>cS", toggle_catppuccin_session,                                desc = "Toggle Catppuccin Session" },
     { "<leader>ct", enter_catppuccin_tiling_mode,                             desc = "Catppuccin Tiling Mode" },
     { "<leader>cT", restore_desktop_mode,                                     desc = "Restore Desktop Mode" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },

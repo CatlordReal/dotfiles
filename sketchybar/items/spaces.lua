@@ -5,7 +5,9 @@ local app_icons = require("helpers.app_icons")
 
 local workspace_names = { "1", "2", "3", "4", "5", "6", "7", "8", "9" }
 local spaces = {}
+local space_paddings = {}
 local focused_workspace = "1"
+local showing_spaces = false
 
 local function app_icon(app)
   return app_icons[app] or app_icons["Default"] or ":default:"
@@ -43,7 +45,7 @@ for _, workspace in ipairs(workspace_names) do
 
   spaces[workspace] = space
 
-  sbar.add("item", "space.padding." .. workspace, {
+  space_paddings[workspace] = sbar.add("item", "space.padding." .. workspace, {
     drawing = false,
     width = settings.group_paddings,
   })
@@ -58,6 +60,7 @@ for _, workspace in ipairs(workspace_names) do
 end
 
 local spaces_indicator = sbar.add("item", "spaces.indicator", {
+  updates = true,
   padding_left = -3,
   padding_right = 0,
   icon = {
@@ -89,6 +92,7 @@ local function parse_workspace_state(output)
   local workspace_apps = {}
   local workspace_counts = {}
   local workspace_monitors = {}
+  local highest_used = 1
 
   for _, workspace in ipairs(workspace_names) do
     workspace_apps[workspace] = ""
@@ -104,6 +108,7 @@ local function parse_workspace_state(output)
       local key, value = line:match("^FOCUSED=(.+)$")
       if key then
         focused_workspace = key
+        highest_used = math.max(highest_used, tonumber(key) or 1)
       elseif section == "workspaces" then
         local workspace, monitor = line:match("^([^|]+)|(.+)$")
         if workspace_monitors[workspace] then
@@ -113,6 +118,7 @@ local function parse_workspace_state(output)
         local workspace, app = line:match("^([^|]+)|(.+)$")
         if workspace_apps[workspace] and app and app ~= "" then
           workspace_counts[workspace] = workspace_counts[workspace] + 1
+          highest_used = math.max(highest_used, tonumber(workspace) or 1)
           local icon = app_icon(app)
           if not workspace_apps[workspace]:find(icon, 1, true) then
             workspace_apps[workspace] = workspace_apps[workspace] .. icon
@@ -125,11 +131,21 @@ local function parse_workspace_state(output)
   local focused_has_windows = (workspace_counts[focused_workspace] or 0) > 0
   sbar.set("/widgets\\..*/", { drawing = focused_has_windows })
 
+  local visible_limit = 4
+  if highest_used >= 4 then
+    visible_limit = math.min(9, highest_used + 1)
+  end
+
   for workspace, item in pairs(spaces) do
+    local workspace_number = tonumber(workspace) or 1
     local selected = workspace == focused_workspace
     local has_windows = (workspace_counts[workspace] or 0) > 0
+    local should_show = showing_spaces and workspace_number <= visible_limit
     local label = workspace_apps[workspace]
     if label == "" then label = " —" end
+
+    item:set({ drawing = should_show })
+    space_paddings[workspace]:set({ drawing = should_show })
 
     sbar.animate("tanh", 12, function()
       item:set({
@@ -161,10 +177,11 @@ watcher:subscribe({ "routine", "aerospace_workspace_change", "front_app_switched
 end)
 
 spaces_indicator:subscribe("swap_menus_and_spaces", function(env)
-  local currently_showing_spaces = spaces_indicator:query().icon.value == icons.switch.on
+  showing_spaces = not showing_spaces
   spaces_indicator:set({
-    icon = currently_showing_spaces and icons.switch.off or icons.switch.on
+    icon = showing_spaces and icons.switch.on or icons.switch.off
   })
+  update_spaces()
 end)
 
 spaces_indicator:subscribe("mouse.entered", function(env)

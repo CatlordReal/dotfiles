@@ -119,10 +119,31 @@ wallpaper_for_flavour() {
     2>/dev/null | head -n 1
 }
 
+run_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+
+  "$@" &
+  local command_pid="$!"
+  local waited=0
+
+  while kill -0 "$command_pid" >/dev/null 2>&1; do
+    if (( waited >= timeout_seconds )); then
+      kill "$command_pid" >/dev/null 2>&1 || true
+      wait "$command_pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  wait "$command_pid"
+}
+
 set_wallpaper() {
   local wallpaper="$1"
   [[ -f "$wallpaper" ]] || return 1
-  osascript -e "tell application \"System Events\" to tell every desktop to set picture to \"$wallpaper\"" >/dev/null 2>&1 || return 1
+  run_with_timeout 8 osascript -e "tell application \"System Events\" to tell every desktop to set picture to \"$wallpaper\"" >/dev/null 2>&1 || return 1
 }
 
 desktop_icon_state() {
@@ -184,7 +205,7 @@ apply_mode() {
   fi
 
   set_desktop_icons false
-  "$KITTY_OPACITY_SCRIPT" "$DEFAULT_OPACITY" >/dev/null
+  "$KITTY_OPACITY_SCRIPT" "$DEFAULT_OPACITY" >/dev/null || true
   mark_state 1 "$flavour"
   if [[ "$(cat "$STATE_DIR/jankyborders_enabled" 2>/dev/null || printf '1')" == "1" ]]; then
     "$JANKYBORDERS_SCRIPT" apply "$flavour" >/dev/null 2>&1 || true
@@ -214,11 +235,11 @@ restore_mode() {
   if [[ "$previous_opacity" == "__unset__" || -z "$previous_opacity" ]]; then
     remove_kitty_opacity
   else
-    "$KITTY_OPACITY_SCRIPT" "$previous_opacity" >/dev/null
+    "$KITTY_OPACITY_SCRIPT" "$previous_opacity" >/dev/null || true
   fi
 
   mark_state 0 "$FLAVOUR"
-  "$JANKYBORDERS_SCRIPT" off >/dev/null 2>&1 || true
+  "$JANKYBORDERS_SCRIPT" suspend >/dev/null 2>&1 || true
   "$SKETCHYVIM_SCRIPT" suspend >/dev/null 2>&1 || true
   reload_sketchybar
 }

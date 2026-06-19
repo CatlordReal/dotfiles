@@ -21,6 +21,32 @@
                                 "type": "basic"
                             }
                         ]
+                    },
+                    {
+                        "description": "Control-Option-Command-T toggles Catppuccin tiling session",
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "t",
+                                    "modifiers": {
+                                        "mandatory": [
+                                            "left_control",
+                                            "left_option",
+                                            "left_command"
+                                        ],
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "shell_command": "/Users/kianconti/.config/scripts/catppuccin-session.sh toggle"
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
                     }
                 ]
             },

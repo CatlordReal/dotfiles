@@ -59,6 +59,10 @@ run_borders() {
 
 stop_borders() {
   printf '0\n' > "$STATE_DIR/jankyborders_enabled"
+  suspend_borders
+}
+
+suspend_borders() {
   launchctl bootout "gui/$UID_VALUE/$LABEL" >/dev/null 2>&1 || true
   killall borders >/dev/null 2>&1 || true
 }
@@ -72,6 +76,9 @@ case "$ACTION" in
     ;;
   off|stop|disable)
     stop_borders
+    ;;
+  suspend)
+    suspend_borders
     ;;
   toggle)
     if pgrep -x borders >/dev/null 2>&1; then
@@ -88,7 +95,7 @@ case "$ACTION" in
     fi
     ;;
   *)
-    printf 'Usage: %s apply|toggle|status|off [flavour]\n' "${0##*/}" >&2
+    printf 'Usage: %s apply|toggle|status|off|suspend [flavour]\n' "${0##*/}" >&2
     exit 2
     ;;
 esac
