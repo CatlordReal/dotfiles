@@ -1268,6 +1268,26 @@ require("lazy").setup({
         "echasnovski/mini.files",
         dependencies = { "nvim-mini/mini.icons" },
         config = function()
+            local function mini_files_open_background(close_tree)
+                local mf = require("mini.files")
+                local entry = mf.get_fs_entry()
+                if not entry then
+                    return
+                end
+
+                if entry.fs_type == "directory" then
+                    mf.go_in()
+                    return
+                end
+
+                if entry.fs_type == "file" then
+                    vim.cmd("badd " .. vim.fn.fnameescape(entry.path))
+                    if close_tree then
+                        mf.close()
+                    end
+                end
+            end
+
             require("mini.files").setup({
                 windows = {
                     width = 40,
@@ -1289,6 +1309,22 @@ require("lazy").setup({
                     vim.b[args.buf].minianimate_disable = true
                 end,
             })
+
+            vim.api.nvim_create_autocmd("User", {
+                pattern = "MiniFilesBufferCreate",
+                callback = function(args)
+                    local opts = { buffer = args.data.buf_id, nowait = true, silent = true }
+                    vim.keymap.set("n", "<S-CR>", function()
+                        require("mini.files").go_in({ close_on_file = true })
+                    end, vim.tbl_extend("force", opts, { desc = "Open and close tree" }))
+                    vim.keymap.set("n", "<Tab>", function()
+                        mini_files_open_background(false)
+                    end, vim.tbl_extend("force", opts, { desc = "Open in background" }))
+                    vim.keymap.set("n", "<S-Tab>", function()
+                        mini_files_open_background(true)
+                    end, vim.tbl_extend("force", opts, { desc = "Open in background and close tree" }))
+                end,
+            })
         end,
     },
     {
@@ -1307,6 +1343,49 @@ require("lazy").setup({
             close_if_last_window = true,
             enable_git_status = true,
             enable_diagnostics = true,
+            commands = {
+                open_and_close_tree = function(state)
+                    local node = state.tree:get_node()
+                    if not node then
+                        return
+                    end
+                    if node.type == "directory" then
+                        require("neo-tree.sources.filesystem.commands").toggle_node(state)
+                        return
+                    end
+                    require("neo-tree.sources.filesystem.commands").open(state)
+                    vim.cmd("Neotree close")
+                end,
+                open_background = function(state)
+                    local node = state.tree:get_node()
+                    if not node then
+                        return
+                    end
+                    if node.type == "directory" then
+                        require("neo-tree.sources.filesystem.commands").toggle_node(state)
+                        return
+                    end
+                    local path = node.path or node:get_id()
+                    if path and path ~= "" then
+                        vim.cmd("badd " .. vim.fn.fnameescape(path))
+                    end
+                end,
+                open_background_and_close_tree = function(state)
+                    local node = state.tree:get_node()
+                    if not node then
+                        return
+                    end
+                    if node.type == "directory" then
+                        require("neo-tree.sources.filesystem.commands").toggle_node(state)
+                        return
+                    end
+                    local path = node.path or node:get_id()
+                    if path and path ~= "" then
+                        vim.cmd("badd " .. vim.fn.fnameescape(path))
+                    end
+                    vim.cmd("Neotree close")
+                end,
+            },
             filesystem = {
                 follow_current_file = {
                     enabled = true,
@@ -1320,6 +1399,12 @@ require("lazy").setup({
             },
             window = {
                 width = 34,
+                mappings = {
+                    ["<cr>"] = "open",
+                    ["<S-CR>"] = "open_and_close_tree",
+                    ["<Tab>"] = "open_background",
+                    ["<S-Tab>"] = "open_background_and_close_tree",
+                },
             },
         },
     },
