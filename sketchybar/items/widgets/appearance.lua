@@ -6,7 +6,7 @@ sbar.add("event", "appearance_status_changed")
 
 local popup_width = 230
 
-local control = sbar.add("item", "widgets.appearance", {
+local control = sbar.add("item", "appearance.control", {
   position = "right",
   update_freq = 60,
   icon = {
@@ -26,13 +26,13 @@ local control = sbar.add("item", "widgets.appearance", {
   popup = { align = "center" },
 })
 
-sbar.add("item", "widgets.appearance.padding", {
+sbar.add("item", "appearance.padding", {
   position = "right",
   width = settings.group_paddings,
 })
 
 local function popup_item(name, icon, label, click_script)
-  return sbar.add("item", "appearance." .. name, {
+  return sbar.add("item", "appearance.menu." .. name, {
     position = "popup." .. control.name,
     width = popup_width,
     align = "center",
@@ -62,13 +62,14 @@ local frappe = popup_item("frappe", "●", "Frappe", "$HOME/.config/scripts/appe
 local macchiato = popup_item("macchiato", "●", "Macchiato", "$HOME/.config/scripts/appearance-control.sh theme macchiato")
 local mocha = popup_item("mocha", icons.moon, "Mocha", "$HOME/.config/scripts/appearance-control.sh theme mocha")
 local auto = popup_item("auto", icons.switch.off, "Auto macOS appearance", "$HOME/.config/scripts/appearance-control.sh toggle-auto")
+local session = popup_item("session", icons.switch.off, "Rice session", "$HOME/.config/scripts/appearance-control.sh toggle-session")
 local opacity_title = popup_item("opacity_title", "􀍠", "Kitty opacity", "")
 local opacity_60 = popup_item("opacity_60", "60", "Soft glass", "$HOME/.config/scripts/appearance-control.sh opacity 60")
 local opacity_70 = popup_item("opacity_70", "70", "Default glass", "$HOME/.config/scripts/appearance-control.sh opacity 70")
 local opacity_85 = popup_item("opacity_85", "85", "Subtle glass", "$HOME/.config/scripts/appearance-control.sh opacity 85")
 local opacity_100 = popup_item("opacity_100", "100", "Opaque", "$HOME/.config/scripts/appearance-control.sh opacity 100")
 local sounds = popup_item("sounds", icons.sound, "Sounds", "$HOME/.config/scripts/appearance-control.sh toggle-sounds")
-local reload = popup_item("reload", "􀅈", "Reload rice", "$HOME/.config/scripts/appearance-control.sh reload")
+local reload = popup_item("reload", "􀅈", "Reload all", "$HOME/.config/scripts/appearance-control.sh reload-all")
 
 local flavour_items = {
   latte = latte,
@@ -100,6 +101,7 @@ local function update_status()
     local opacity = status.opacity or "0.70"
     local auto_on = status.auto == "on"
     local sound_on = status.sounds == "on"
+    local session_on = status.session == "on"
 
     control:set({
       icon = { color = theme == "latte" and colors.yellow or colors.magenta },
@@ -113,6 +115,10 @@ local function update_status()
     sounds:set({
       icon = { color = sound_on and colors.green or colors.grey },
       label = "Sounds " .. (sound_on and "on" or "off"),
+    })
+    session:set({
+      icon = { string = session_on and icons.switch.on or icons.switch.off, color = session_on and colors.green or colors.grey },
+      label = "Rice session " .. (session_on and "on" or "off"),
     })
 
     for name, item in pairs(flavour_items) do
@@ -172,5 +178,6 @@ control:subscribe("mouse.exited", function()
 end)
 
 opacity_title:set({ icon = { color = colors.blue }, label = { color = colors.white } })
+session:set({ icon = { color = colors.green } })
 reload:set({ icon = { color = colors.orange } })
 update_status()

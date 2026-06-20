@@ -52,7 +52,7 @@ Important files:
 - `settings.lua`: font and spacing settings.
 - `items/spaces.lua`: AeroSpace workspace indicators and app icons.
 - `items/shelf.lua`: centre Shelf item and popup list.
-- `items/widgets/appearance.lua`: appearance dropdown and status poller.
+- `items/widgets/appearance.lua`: appearance dropdown, session toggle, reload-all button and status poller.
 - `items/media.lua`: Apple Music / Now Playing.
 - `items/widgets/*.lua`: right-side widgets.
 
@@ -63,7 +63,7 @@ Widgets:
 - Focused app.
 - Apple Music artwork, title, artist and popup controls.
 - Volume, network, CPU, memory, brightness, weather, SketchyVim and calendar.
-- Appearance gear with Catppuccin flavour, auto appearance, Kitty opacity, sound and reload controls.
+- Appearance gear with Catppuccin flavour, full rice toggle, auto appearance, Kitty opacity, sound and reload-all controls.
 - Centre Shelf item with a Finder-backed folder and popup list.
 
 The running SketchyBar binary exposes click, scroll and hover events, but not a native external file-drop event. The Shelf item uses a real folder at `~/.config/ricing/shelf`; files can be dragged into and out of that folder in Finder while the bar shows count and recent entries.
@@ -181,13 +181,20 @@ Commands:
 
 ## AeroSpace
 
+
+SwiftBar:
+
+- plugin: `swiftbar/catppuccin-rice.1m.sh`.
+- LaunchAgent: `swiftbar/com.kianconti.swiftbar.plist`.
+- plugin link target: `~/Library/Application Support/SwiftBar/Plugins/catppuccin-rice.1m.sh`.
+
 Layout philosophy:
 
 - Default layout is `tiles` with automatic orientation.
 - Halves and balanced quarters are preferred over constant thirds.
 - Quarter layouts are shaped with explicit vertical/horizontal splits, movement, joins and balance commands.
 - `Alt+q` is the quick helper for a three-window shape: one half plus two quarters.
-- Kitty is detected by bundle id and floated automatically.
+- Apple Terminal is detected by bundle id and floated automatically; Kitty stays tiled.
 - True always-on-top is not exposed by this AeroSpace build, so no always-on-top hack is installed.
 - AeroSpace does not provide true drag-to-corner quarter snapping in this build.
 - Smooth WM animation is limited by AeroSpace itself; the setup avoids fragile animation hacks.

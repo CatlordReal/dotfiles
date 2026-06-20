@@ -11,7 +11,7 @@
     <string>run</string>
   </array>
   <key>KeepAlive</key>
-  <true/>
+  <false/>
   <key>ProcessType</key>
   <string>Interactive</string>
   <key>EnvironmentVariables</key>

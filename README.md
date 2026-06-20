@@ -109,7 +109,8 @@ Appearance popup:
 - Toggle automatic macOS light/dark appearance sync.
 - Set Kitty opacity to 60%, 70%, 85% or 100%.
 - Toggle subtle UI sounds.
-- Reload AeroSpace, SketchyBar and JankyBorders.
+- Toggle the full rice session on/off.
+- Reload all: AeroSpace, SketchyBar, JankyBorders, SketchyVim and theme colours.
 
 Shelf:
 
@@ -181,6 +182,11 @@ Shelf:
 - `lt`: shallow eza tree.
 - `cat`: bat without paging.
 
+
+## Native Menu Bar
+
+SwiftBar is installed for a normal macOS menu-bar control. It uses `~/.config/swiftbar/catppuccin-rice.1m.sh` and exposes rice toggle, reload all, Catppuccin themes and Kitty opacity.
+
 ## Manual Reloads
 
 ```sh
@@ -189,7 +195,7 @@ aerospace reload-config
 ~/.config/scripts/jankyborders.sh toggle
 ```
 
-Kitty windows are automatically floated by AeroSpace. True always-on-top is not exposed by this AeroSpace build, so the setup avoids a fragile focus loop.
+Apple Terminal windows are automatically floated by AeroSpace. Kitty stays tiled. True always-on-top is not exposed by this AeroSpace build, so the setup avoids a fragile focus loop.
 
 ## Verification
 

@@ -105,7 +105,7 @@ alt-shift-k = ['join-with up', 'mode main']
 alt-shift-l = ['join-with right', 'mode main']
 
 [[on-window-detected]]
-if.app-id = 'net.kovidgoyal.kitty'
+if.app-id = 'com.apple.Terminal'
 run = 'layout floating'
 
 [[on-window-detected]]

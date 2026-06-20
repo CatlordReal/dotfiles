@@ -13,6 +13,8 @@ SESSION_SCRIPT="$CONFIG_HOME/scripts/catppuccin-session.sh"
 TILING_SCRIPT="$CONFIG_HOME/scripts/catppuccin-tiling-mode.sh"
 KITTY_OPACITY_SCRIPT="$CONFIG_HOME/scripts/kitty-opacity.sh"
 SOUND_SCRIPT="$CONFIG_HOME/scripts/aesthetic-sound.sh"
+JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
+SKETCHYVIM_SCRIPT="$CONFIG_HOME/scripts/sketchyvim-toggle.sh"
 
 mkdir -p "$STATE_DIR"
 
@@ -121,13 +123,24 @@ case "$ACTION" in
     trigger_status
     ;;
   reload)
+    "$0" reload-all
+    ;;
+  reload-all)
     aerospace reload-config >/dev/null 2>&1 || true
+    "$TILING_SCRIPT" colors "$(current_theme)" >/dev/null 2>&1 || true
+    "$JANKYBORDERS_SCRIPT" apply "$(current_theme)" >/dev/null 2>&1 || true
+    "$SKETCHYVIM_SCRIPT" apply >/dev/null 2>&1 || true
     sketchybar --reload >/dev/null 2>&1 || true
-    "$CONFIG_HOME/scripts/jankyborders.sh" apply "$(current_theme)" >/dev/null 2>&1 || true
     "$SOUND_SCRIPT" play reload >/dev/null 2>&1 || true
+    trigger_status
+    ;;
+  toggle-session)
+    "$SESSION_SCRIPT" toggle "$(current_theme)" >/dev/null 2>&1 || true
+    "$SOUND_SCRIPT" play toggle >/dev/null 2>&1 || true
+    trigger_status
     ;;
   *)
-    printf 'Usage: %s status|theme <flavour>|opacity <percent>|toggle-auto|auto-sync|toggle-sounds|reload\n' "${0##*/}" >&2
+    printf 'Usage: %s status|theme <flavour>|opacity <percent>|toggle-auto|auto-sync|toggle-sounds|toggle-session|reload|reload-all\n' "${0##*/}" >&2
     exit 2
     ;;
 esac
