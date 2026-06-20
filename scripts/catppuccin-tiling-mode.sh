@@ -10,6 +10,7 @@ SKETCHYBAR_DIR="$CONFIG_HOME/sketchybar"
 SKETCHYBAR_ACTIVE_THEME="$SKETCHYBAR_DIR/helpers/active_theme.txt"
 WALLPAPER_DIR="$CONFIG_HOME/wallpapers/catppuccin"
 KITTY_CONFIG="$CONFIG_HOME/kitty/kitty.conf"
+KITTY_CURRENT_THEME="$CONFIG_HOME/kitty/current-theme.conf"
 STARSHIP_CONFIG="$CONFIG_HOME/starship.toml"
 KITTY_OPACITY_SCRIPT="$CONFIG_HOME/scripts/kitty-opacity.sh"
 JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
@@ -39,26 +40,39 @@ title_flavour() {
   printf '%s%s\n' "$(printf '%s' "${value:0:1}" | tr '[:lower:]' '[:upper:]')" "${value:1}"
 }
 
+kitty_theme_name() {
+  case "$(normalise_flavour "$1")" in
+    latte) printf 'Catppuccin-Latte\n' ;;
+    frappe) printf 'Catppuccin-Frappe\n' ;;
+    macchiato) printf 'Catppuccin-Macchiato\n' ;;
+    *) printf 'Catppuccin-Mocha\n' ;;
+  esac
+}
+
 palette() {
   case "$(normalise_flavour "$1")" in
     latte)
       BASE=eff1f5; MANTLE=e6e9ef; CRUST=dce0e8; TEXT=4c4f69; SUBTEXT=6c6f85
       SURFACE0=ccd0da; SURFACE1=bcc0cc; OVERLAY0=9ca0b0; BLUE=1e66f5
+      ROSEWATER=dc8a78; TEAL=179299
       LAVENDER=7287fd; MAUVE=8839ef; GREEN=40a02b; YELLOW=df8e1d; RED=d20f39
       ;;
     frappe)
       BASE=303446; MANTLE=292c3c; CRUST=232634; TEXT=c6d0f5; SUBTEXT=a5adce
       SURFACE0=414559; SURFACE1=51576d; OVERLAY0=737994; BLUE=8caaee
+      ROSEWATER=f2d5cf; TEAL=81c8be
       LAVENDER=babbf1; MAUVE=ca9ee6; GREEN=a6d189; YELLOW=e5c890; RED=e78284
       ;;
     macchiato)
       BASE=24273a; MANTLE=1e2030; CRUST=181926; TEXT=cad3f5; SUBTEXT=a5adcb
       SURFACE0=363a4f; SURFACE1=494d64; OVERLAY0=6e738d; BLUE=8aadf4
+      ROSEWATER=f4dbd6; TEAL=8bd5ca
       LAVENDER=b7bdf8; MAUVE=c6a0f6; GREEN=a6da95; YELLOW=eed49f; RED=ed8796
       ;;
     *)
       BASE=1e1e2e; MANTLE=181825; CRUST=11111b; TEXT=cdd6f4; SUBTEXT=a6adc8
       SURFACE0=313244; SURFACE1=45475a; OVERLAY0=6c7086; BLUE=89b4fa
+      ROSEWATER=f5e0dc; TEAL=94e2d5
       LAVENDER=b4befe; MAUVE=cba6f7; GREEN=a6e3a1; YELLOW=f9e2af; RED=f38ba8
       ;;
   esac
@@ -92,8 +106,76 @@ EOF
 reload_sketchybar() {
   command -v sketchybar >/dev/null 2>&1 || return 0
   pgrep -x sketchybar >/dev/null 2>&1 || return 0
-  sketchybar --trigger catppuccin_theme_changed >/dev/null 2>&1 || true
-  sketchybar --reload >/dev/null 2>&1 || true
+  run_with_timeout 3 sketchybar --trigger catppuccin_theme_changed >/dev/null 2>&1 || true
+  run_with_timeout 5 sketchybar --reload >/dev/null 2>&1 || true
+}
+
+sync_kitty_theme() {
+  local flavour theme
+  flavour="$(normalise_flavour "$1")"
+  theme="$(kitty_theme_name "$flavour")"
+  palette "$flavour"
+  mkdir -p "$(dirname "$KITTY_CURRENT_THEME")"
+  cat > "$KITTY_CURRENT_THEME" <<EOF
+## name:     $theme
+## author:   Catppuccin
+## license:  MIT
+## upstream: https://github.com/catppuccin/kitty
+
+foreground              #$TEXT
+background              #$BASE
+selection_foreground    #$BASE
+selection_background    #$ROSEWATER
+cursor                  #$ROSEWATER
+cursor_text_color       #$BASE
+url_color               #$ROSEWATER
+active_border_color     #$LAVENDER
+inactive_border_color   #$OVERLAY0
+bell_border_color       #$YELLOW
+active_tab_foreground   #$BASE
+active_tab_background   #$MAUVE
+inactive_tab_foreground #$TEXT
+inactive_tab_background #$SURFACE0
+tab_bar_background      #$CRUST
+
+color0 #$SURFACE1
+color1 #$RED
+color2 #$GREEN
+color3 #$YELLOW
+color4 #$BLUE
+color5 #$MAUVE
+color6 #$TEAL
+color7 #$SUBTEXT
+color8 #$SURFACE1
+color9 #$RED
+color10 #$GREEN
+color11 #$YELLOW
+color12 #$BLUE
+color13 #$MAUVE
+color14 #$TEAL
+color15 #$TEXT
+EOF
+
+  if [[ -f "$KITTY_CONFIG" ]]; then
+    local config_tmp
+    config_tmp="$(mktemp "${TMPDIR:-/tmp}/kitty.conf.XXXXXX")"
+    awk -v theme="$theme" '
+      BEGIN { done = 0 }
+      /^#[[:space:]]*Catppuccin-/ {
+        if (!done) {
+          print "# " theme
+          done = 1
+        }
+        next
+      }
+      { print }
+    ' "$KITTY_CONFIG" > "$config_tmp"
+    mv "$config_tmp" "$KITTY_CONFIG"
+  fi
+
+  command -v kitty >/dev/null 2>&1 || return 0
+  run_with_timeout 3 kitty @ set-colors --all --configured "$KITTY_CURRENT_THEME" >/dev/null 2>&1 ||
+    run_with_timeout 3 kitty @ load-config "$KITTY_CONFIG" >/dev/null 2>&1 || true
 }
 
 current_wallpaper() {
@@ -217,6 +299,7 @@ apply_mode() {
 
   save_state_once
   write_sketchybar_colors "$flavour"
+  sync_kitty_theme "$flavour"
 
   wallpaper="$(wallpaper_for_flavour "$flavour")"
   if [[ -n "$wallpaper" ]]; then
@@ -240,6 +323,7 @@ restore_mode() {
   local previous_wallpaper previous_icons previous_opacity
 
   write_sketchybar_colors "$(normalise_flavour "$FLAVOUR")"
+  sync_kitty_theme "$FLAVOUR"
 
   previous_wallpaper="$(cat "$STATE_DIR/previous_wallpaper" 2>/dev/null || true)"
   if [[ -n "$previous_wallpaper" && -f "$previous_wallpaper" ]]; then
@@ -276,6 +360,7 @@ case "$ACTION" in
     ;;
   colors)
     write_sketchybar_colors "$FLAVOUR"
+    sync_kitty_theme "$FLAVOUR"
     mark_state "$(cat "$STATE_DIR/active" 2>/dev/null || printf '0')" "$FLAVOUR"
     if [[ "$(cat "$STATE_DIR/jankyborders_enabled" 2>/dev/null || printf '1')" == "1" ]]; then
       "$JANKYBORDERS_SCRIPT" apply "$FLAVOUR" >/dev/null 2>&1 || true
