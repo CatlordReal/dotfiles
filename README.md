@@ -1,126 +1,22 @@
 # Dotfiles
 
-These are my macOS dotfiles. The repo mirrors the configs I actually use, with a small sync helper instead of a dotfile framework.
+- [Technical ricing reference](docs/ricing-technical.md)
 
-The main setup includes:
+## What Is Here
 
-- Neovim as the editor and theme control centre.
-- Kitty as the terminal.
-- AeroSpace for tiling.
-- SketchyBar as the top bar.
-- Karabiner for keyboard remaps.
-- JankyBorders for themed focus borders.
-- Starship, Yazi, lazygit, zoxide, eza, bat, fzf and delta for terminal workflow.
-
-Detailed implementation notes for the ricing setup live in:
-
-- [docs/ricing-technical.md](docs/ricing-technical.md)
-
-## Layout
-
-- `aerospace/`: window manager config.
+- `aerospace/`: AeroSpace window manager config.
 - `borders/`: JankyBorders LaunchAgent.
 - `karabiner/`: keyboard rules.
 - `kitty/`: Kitty config and active theme.
 - `lazygit/`: lazygit config.
-- `nvim/`: Neovim config.
-- `ricing/`: startup helper plist and notes.
-- `scripts/`: session and theme helper scripts.
-- `sketchybar/`: SketchyBar config.
+- `nvim/`: Neovim config and theme controls.
+- `ricing/`: ricing state helpers and LaunchAgent plist.
+- `scripts/`: session, theme, shelf, sound and appearance scripts.
+- `sketchybar/`: SketchyBar config and widgets.
 - `starship.toml`: prompt config.
 - `svim/`: SketchyVim config.
 - `yazi/`: Yazi config.
 - `zsh/`: shell integration.
-- `sync-config-to-dotfiles`: sync live configs back into this repo.
-
-## Install
-
-Install the main tools:
-
-```sh
-brew install aerospace sketchybar borders nowplaying-cli brightness starship yazi lazygit git-delta zoxide eza bat fzf btop tmux
-brew install --cask kitty karabiner-elements
-```
-
-Restore the configs:
-
-```sh
-mkdir -p ~/.config
-cp -R ~/dotfiles/aerospace ~/.config/
-cp -R ~/dotfiles/borders ~/.config/
-cp -R ~/dotfiles/karabiner ~/.config/
-cp -R ~/dotfiles/kitty ~/.config/
-cp -R ~/dotfiles/lazygit ~/.config/
-cp -R ~/dotfiles/nvim ~/.config/
-cp -R ~/dotfiles/ricing ~/.config/
-cp -R ~/dotfiles/scripts ~/.config/
-cp -R ~/dotfiles/sketchybar ~/.config/
-cp -R ~/dotfiles/svim ~/.config/
-cp -R ~/dotfiles/yazi ~/.config/
-cp -R ~/dotfiles/zsh ~/.config/
-cp -R ~/dotfiles/wallpapers ~/.config/
-cp ~/dotfiles/starship.toml ~/.config/starship.toml
-```
-
-Add the shell hook if it is missing:
-
-```sh
-printf '\n# Catppuccin ricing tools\n[[ -r "$HOME/.config/zsh/ricing.zsh" ]] && source "$HOME/.config/zsh/ricing.zsh"\n' >> ~/.zshrc
-```
-
-## Sync Changes
-
-Before committing config changes, sync live files back into the repo:
-
-```sh
-~/dotfiles/sync-config-to-dotfiles --include aerospace,sketchybar,karabiner,kitty,nvim,scripts,yazi,lazygit,zsh,wallpapers
-cp -p ~/.config/starship.toml ~/dotfiles/starship.toml
-cp -p ~/.zshrc ~/dotfiles/zshrc
-```
-
-If the sync helper marks old repo-only scripts as deleted and I did not intend to remove them:
-
-```sh
-git -C ~/dotfiles restore scripts/USAGE.md scripts/ctd scripts/kitty-wallpaper scripts/newcpp scripts/tsaver
-```
-
-Commit:
-
-```sh
-git -C ~/dotfiles status -sb
-git -C ~/dotfiles diff --stat
-git -C ~/dotfiles add <files>
-git -C ~/dotfiles commit -m "Describe the change"
-git -C ~/dotfiles push
-```
-
-## Ricing Session
-
-Start the full Catppuccin tiling setup:
-
-```sh
-~/.config/scripts/catppuccin-session.sh on mocha
-```
-
-Stop it:
-
-```sh
-~/.config/scripts/catppuccin-session.sh off
-```
-
-Toggle it:
-
-```sh
-~/.config/scripts/catppuccin-session.sh toggle
-```
-
-Check status:
-
-```sh
-~/.config/scripts/catppuccin-session.sh status
-```
-
-The session starts or stops AeroSpace, SketchyBar, JankyBorders, SketchyVim preference, wallpaper, desktop icon visibility, theme sync and Kitty opacity.
 
 ## Neovim Controls
 
@@ -141,7 +37,7 @@ The session starts or stops AeroSpace, SketchyBar, JankyBorders, SketchyVim pref
 - `Alt+h/j/k/l`: focus left/down/up/right.
 - `Alt+Shift+h/j/k/l`: move focused window left/down/up/right.
 - `Alt+-` / `Alt+=`: resize smart smaller/larger.
-- `Alt+Shift+-` / `Alt+Shift+=`: larger smart resize steps.
+- `Alt+Shift+-` / `Alt+Shift+=`: larger resize steps.
 - `Alt+f`: fullscreen focused window.
 - `Alt+Shift+Space`: toggle floating/tiling.
 - `Alt+/`: toggle tile orientation.
@@ -186,27 +82,91 @@ Hyper shortcuts:
 - `Hyper+h/j/k/l`: focus left/down/up/right via AeroSpace.
 - `Hyper+Arrow keys`: move focused window left/down/up/right via AeroSpace.
 
-Fallback toggle:
+Fallback:
 
 - `Control+Option+Command+T`: toggle the full Catppuccin tiling session.
 
-## SketchyBar Usage
+## SketchyBar Controls
 
-- Workspace items switch AeroSpace workspaces.
-- Dragging an app/file onto a workspace item moves the focused window there when supported.
-- Apple Music artwork/title/artist appears while playing.
-- Clicking Apple Music artwork opens popup controls.
+- Click the workspace items to switch AeroSpace workspaces.
+- Right-click a workspace item to move the focused window there.
+- Click Apple Music artwork to show previous/play-pause/next controls.
 - Scroll over volume to adjust volume.
-- Click volume to open output devices when `SwitchAudioSource` is available.
-- Click network to open network details.
+- Click volume to show output devices when `SwitchAudioSource` is available.
+- Click network to show interface, hostname, IP and router.
 - Scroll over brightness to adjust in 5% steps.
 - Click brightness to open Displays settings.
 - Click weather to open `wttr.in`.
+- Click the appearance gear to open the appearance popup.
+- Click the centre Shelf item to open the shelf folder.
+- Right-click or hover the Shelf item to show pinned files.
 
-Weather location can be set before starting SketchyBar:
+Appearance popup:
+
+- Choose Catppuccin Latte, Frappe, Macchiato or Mocha.
+- Toggle automatic macOS light/dark appearance sync.
+- Set Kitty opacity to 60%, 70%, 85% or 100%.
+- Toggle subtle UI sounds.
+- Reload AeroSpace, SketchyBar and JankyBorders.
+
+Shelf:
+
+- The bar cannot receive external file drops in the current SketchyBar build.
+- The Shelf item opens a Finder-backed folder at `~/.config/ricing/shelf`.
+- Drag files into that folder to keep them in the shelf.
+- Drag files out of that folder to remove them.
+- Popup rows reveal files in Finder.
+
+Weather location:
 
 ```sh
 export SKETCHYBAR_WEATHER_LOCATION=London
+```
+
+## Theme And Appearance Commands
+
+Full session:
+
+```sh
+~/.config/scripts/catppuccin-session.sh on mocha
+~/.config/scripts/catppuccin-session.sh off
+~/.config/scripts/catppuccin-session.sh toggle
+~/.config/scripts/catppuccin-session.sh status
+```
+
+Appearance popup backend:
+
+```sh
+~/.config/scripts/appearance-control.sh status
+~/.config/scripts/appearance-control.sh theme mocha
+~/.config/scripts/appearance-control.sh opacity 70
+~/.config/scripts/appearance-control.sh toggle-auto
+~/.config/scripts/appearance-control.sh toggle-sounds
+~/.config/scripts/appearance-control.sh reload
+```
+
+Kitty opacity:
+
+```sh
+~/.config/scripts/kitty-opacity.sh 70
+~/.config/scripts/kitty-opacity.sh 0.70
+~/.config/scripts/kitty-opacity.sh 70%
+```
+
+Sounds:
+
+```sh
+~/.config/scripts/aesthetic-sound.sh status
+~/.config/scripts/aesthetic-sound.sh toggle
+~/.config/scripts/aesthetic-sound.sh off
+```
+
+Shelf:
+
+```sh
+~/.config/scripts/shelf.sh open
+~/.config/scripts/shelf.sh list
+~/.config/scripts/shelf.sh path
 ```
 
 ## Terminal Commands
@@ -219,49 +179,12 @@ export SKETCHYBAR_WEATHER_LOCATION=London
 - `lt`: shallow eza tree.
 - `cat`: bat without paging.
 
-Kitty opacity:
-
-```sh
-~/.config/scripts/kitty-opacity.sh 70
-~/.config/scripts/kitty-opacity.sh 0.70
-~/.config/scripts/kitty-opacity.sh 70%
-```
-
-## Manual Service Commands
-
-Reload SketchyBar:
+## Manual Reloads
 
 ```sh
 sketchybar --reload
-```
-
-Start or reload AeroSpace:
-
-```sh
-open -a AeroSpace
 aerospace reload-config
-```
-
-Stop AeroSpace:
-
-```sh
-osascript -e 'quit app "AeroSpace"'
-```
-
-Toggle borders:
-
-```sh
 ~/.config/scripts/jankyborders.sh toggle
-```
-
-Undo the ricing session:
-
-```sh
-~/.config/scripts/catppuccin-session.sh off
-launchctl bootout "gui/$(id -u)/com.kianconti.sketchybar" 2>/dev/null
-~/.config/scripts/jankyborders.sh off
-~/.config/scripts/sketchyvim-toggle.sh off
-osascript -e 'quit app "AeroSpace"'
 ```
 
 ## Verification
@@ -275,8 +198,11 @@ print("aerospace toml ok")
 PY
 find ~/.config/sketchybar -name '*.lua' -print0 | xargs -0 luac -p
 zsh -n ~/.config/zsh/ricing.zsh
+zsh -n ~/.config/scripts/appearance-control.sh ~/.config/scripts/aesthetic-sound.sh ~/.config/scripts/shelf.sh
 yazi --version
 lazygit --version
 delta --version
 starship explain
 ```
+
+Docs generated by ChatGPT Codex.

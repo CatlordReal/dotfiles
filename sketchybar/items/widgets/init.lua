@@ -1,3 +1,4 @@
+require("items.widgets.appearance")
 require("items.widgets.volume")
 require("items.widgets.brightness")
 require("items.widgets.wifi")

@@ -11,6 +11,12 @@ local icons = {
     clipboard = "􀉄",
     brightness = "􀆫",
     weather = "􀇔",
+    chevron_down = "􀆈",
+    chevron_up = "􀆇",
+    folder = "􀈕",
+    sound = "􀊠",
+    moon = "􀆺",
+    sun = "􀆭",
 
     switch = {
       on = "􁏮",
@@ -48,6 +54,12 @@ local icons = {
     clipboard = "Missing Icon",
     brightness = "󰃞",
     weather = "",
+    chevron_down = "",
+    chevron_up = "",
+    folder = "",
+    sound = "",
+    moon = "",
+    sun = "",
 
     switch = {
       on = "󱨥",

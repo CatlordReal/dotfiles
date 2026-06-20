@@ -10,9 +10,11 @@ SKETCHYBAR_DIR="$CONFIG_HOME/sketchybar"
 SKETCHYBAR_ACTIVE_THEME="$SKETCHYBAR_DIR/helpers/active_theme.txt"
 WALLPAPER_DIR="$CONFIG_HOME/wallpapers/catppuccin"
 KITTY_CONFIG="$CONFIG_HOME/kitty/kitty.conf"
+STARSHIP_CONFIG="$CONFIG_HOME/starship.toml"
 KITTY_OPACITY_SCRIPT="$CONFIG_HOME/scripts/kitty-opacity.sh"
 JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
 SKETCHYVIM_SCRIPT="$CONFIG_HOME/scripts/sketchyvim-toggle.sh"
+SOUND_SCRIPT="$CONFIG_HOME/scripts/aesthetic-sound.sh"
 DEFAULT_OPACITY="${CATPPUCCIN_TILING_OPACITY:-70}"
 
 mkdir -p "$STATE_DIR" "$SKETCHYBAR_DIR" "$SKETCHYBAR_DIR/helpers"
@@ -188,6 +190,25 @@ mark_state() {
   printf '%s\n' "$active" > "$STATE_DIR/active"
   printf '%s\n' "$normalised" > "$STATE_DIR/theme"
   printf '%s\n' "$normalised" > "$SKETCHYBAR_ACTIVE_THEME"
+  sync_starship_palette "$normalised"
+}
+
+sync_starship_palette() {
+  local flavour="$1" tmp
+  [[ -f "$STARSHIP_CONFIG" ]] || return 0
+  tmp="$(mktemp "${TMPDIR:-/tmp}/starship.toml.XXXXXX")"
+  awk -v flavour="$flavour" '
+    /^palette[[:space:]]*=/ {
+      print "palette = \"catppuccin_" flavour "\""
+      done = 1
+      next
+    }
+    { print }
+    END {
+      if (!done) print "palette = \"catppuccin_" flavour "\""
+    }
+  ' "$STARSHIP_CONFIG" > "$tmp"
+  mv "$tmp" "$STARSHIP_CONFIG"
 }
 
 apply_mode() {
@@ -212,6 +233,7 @@ apply_mode() {
   fi
   "$SKETCHYVIM_SCRIPT" apply >/dev/null 2>&1 || true
   reload_sketchybar
+  "$SOUND_SCRIPT" play theme >/dev/null 2>&1 || true
 }
 
 restore_mode() {
@@ -242,6 +264,7 @@ restore_mode() {
   "$JANKYBORDERS_SCRIPT" suspend >/dev/null 2>&1 || true
   "$SKETCHYVIM_SCRIPT" suspend >/dev/null 2>&1 || true
   reload_sketchybar
+  "$SOUND_SCRIPT" play toggle >/dev/null 2>&1 || true
 }
 
 case "$ACTION" in
@@ -258,6 +281,7 @@ case "$ACTION" in
       "$JANKYBORDERS_SCRIPT" apply "$FLAVOUR" >/dev/null 2>&1 || true
     fi
     reload_sketchybar
+    "$SOUND_SCRIPT" play theme >/dev/null 2>&1 || true
     ;;
   *)
     printf 'Usage: %s apply|restore|colors [latte|frappe|macchiato|mocha]\n' "${0##*/}" >&2
