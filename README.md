@@ -45,6 +45,7 @@
 - `Alt+v`: split vertical.
 - `Alt+b`: split horizontal.
 - `Alt+Shift+b`: balance sizes.
+- `Alt+q`: shape a three-window layout as one half plus two quarters.
 - `Alt+1` through `Alt+9`: switch workspace.
 - `Alt+Shift+1` through `Alt+Shift+9`: move focused window to workspace and follow it.
 - `Alt+Tab`: workspace back and forth.
@@ -98,6 +99,7 @@ Fallback:
 - Click brightness to open Displays settings.
 - Click weather to open `wttr.in`.
 - Click the appearance gear to open the appearance popup.
+- The appearance gear stays visible on empty desktops; noisy telemetry widgets hide when the focused workspace has no windows.
 - Click the centre Shelf item to open the shelf folder.
 - Right-click or hover the Shelf item to show pinned files.
 
@@ -186,6 +188,8 @@ sketchybar --reload
 aerospace reload-config
 ~/.config/scripts/jankyborders.sh toggle
 ```
+
+Kitty windows are automatically floated by AeroSpace. True always-on-top is not exposed by this AeroSpace build, so the setup avoids a fragile focus loop.
 
 ## Verification
 

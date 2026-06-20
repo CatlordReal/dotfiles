@@ -59,6 +59,7 @@ alt-comma = 'layout accordion horizontal vertical'
 alt-v = 'split vertical'
 alt-b = 'split horizontal'
 alt-shift-b = 'balance-sizes'
+alt-q = ['split vertical', 'move right', 'split horizontal', 'balance-sizes']
 
 alt-1 = 'workspace 1'
 alt-2 = 'workspace 2'
@@ -102,6 +103,10 @@ alt-shift-h = ['join-with left', 'mode main']
 alt-shift-j = ['join-with down', 'mode main']
 alt-shift-k = ['join-with up', 'mode main']
 alt-shift-l = ['join-with right', 'mode main']
+
+[[on-window-detected]]
+if.app-id = 'net.kovidgoyal.kitty'
+run = 'layout floating'
 
 [[on-window-detected]]
 if.app-id = 'com.apple.systempreferences'

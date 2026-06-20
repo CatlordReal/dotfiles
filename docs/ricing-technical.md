@@ -133,7 +133,9 @@ Yazi and lazygit stay Catppuccin-aligned and use the same visual family, but the
 - active border: full-opacity current Catppuccin accent.
 - inactive border: muted translucent surface colour.
 - width: `4.0`.
-- style: rounded, HiDPI on.
+- style: native rounded, HiDPI on.
+- blacklist: Dock, Window Server, Control Center, Notification Center, SystemUIServer, Spotlight and loginwindow.
+- apply path: every apply restarts the borders process cleanly to avoid stale border overlays for apps that have already closed.
 
 This keeps focused windows visible without making unfocused windows disappear.
 
@@ -184,6 +186,9 @@ Layout philosophy:
 - Default layout is `tiles` with automatic orientation.
 - Halves and balanced quarters are preferred over constant thirds.
 - Quarter layouts are shaped with explicit vertical/horizontal splits, movement, joins and balance commands.
+- `Alt+q` is the quick helper for a three-window shape: one half plus two quarters.
+- Kitty is detected by bundle id and floated automatically.
+- True always-on-top is not exposed by this AeroSpace build, so no always-on-top hack is installed.
 - AeroSpace does not provide true drag-to-corner quarter snapping in this build.
 - Smooth WM animation is limited by AeroSpace itself; the setup avoids fragile animation hacks.
 

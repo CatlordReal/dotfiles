@@ -129,7 +129,8 @@ local function parse_workspace_state(output)
   end
 
   local focused_has_windows = (workspace_counts[focused_workspace] or 0) > 0
-  sbar.set("/widgets\\..*/", { drawing = focused_has_windows })
+  -- Keep controls visible even on an empty desktop; only hide telemetry/media noise.
+  sbar.set("/widgets\\.(cpu|memory|network|brightness|weather|volume|svim).*/", { drawing = focused_has_windows })
 
   local visible_limit = 4
   if highest_used >= 4 then
