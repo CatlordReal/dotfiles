@@ -8,7 +8,7 @@ This document contains implementation notes for the macOS Catppuccin ricing setu
 - **SketchyBar** is the top bar, implemented in Lua/SbarLua.
 - **Kitty** is the terminal.
 - **Neovim** is the control centre for theme switching.
-- **Karabiner-Elements** provides Kitty-scoped Caps-as-Escape/Hyper plus physical-Hyper shortcuts.
+- **Karabiner-Elements** provides Kitty-scoped Caps-as-Escape plus Right Shift as Hyper.
 - **JankyBorders** draws subtle Catppuccin focus borders.
 - **SketchyVim** can be toggled as part of the session.
 - **Appearance popup** provides common ricing controls from SketchyBar.
@@ -62,7 +62,7 @@ Widgets:
 - Workspace app icons where practical.
 - Focused app.
 - Apple Music artwork, title, artist and popup controls.
-- Volume, network, CPU, memory, brightness, weather, SketchyVim and calendar.
+- Volume, brightness, appearance, SketchyVim, memory, CPU, network, weather and calendar, ordered so CPU/memory sit next to network and settings sit next to SketchyVim.
 - Appearance gear with Catppuccin flavour, full rice toggle, auto appearance, Kitty opacity, sound and reload-all controls.
 - Centre Shelf item with a Finder-backed folder and popup list.
 
@@ -134,8 +134,8 @@ Yazi and lazygit stay Catppuccin-aligned and use the same visual family, but the
 - inactive border: muted translucent surface colour.
 - width: `4.0`.
 - style: native rounded, HiDPI on.
-- blacklist: Dock, Window Server, Control Center, Notification Center, SystemUIServer, Spotlight and loginwindow.
-- apply path: every apply restarts the borders process cleanly to avoid stale border overlays for apps that have already closed.
+- blacklist: Dock, Window Server, Control Center, Notification Center, SystemUIServer, Spotlight, loginwindow, Phone, iPhone Mirroring, ContinuityCaptureAgent and FaceTime.
+- apply path: every apply restarts the borders process cleanly to avoid stale border overlays for apps that have already closed. Reload-all respects `~/.config/ricing/jankyborders_enabled`, so borders stay off after a ghost-border stop.
 
 This keeps focused windows visible without making unfocused windows disappear.
 
@@ -192,7 +192,7 @@ Layout philosophy:
 
 - Default layout is `tiles` with automatic orientation.
 - Halves and balanced quarters are preferred over constant thirds.
-- Quarter layouts are shaped with explicit vertical/horizontal splits, movement, joins and balance commands.
+- Quarter layouts are shaped with vertical/horizontal orientation commands, movement, joins and balance commands. AeroSpace `split` bindings are avoided because this build rejects them with the current normalization setting.
 - `Alt+q` is the quick helper for a three-window shape: one half plus two quarters.
 - Apple Terminal is detected by bundle id and floated automatically; Kitty stays tiled.
 - True always-on-top is not exposed by this AeroSpace build, so no always-on-top hack is installed.

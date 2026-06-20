@@ -12,9 +12,9 @@ local brightness = sbar.add("item", "widgets.brightness", {
     padding_right = 4,
   },
   label = {
-    string = "--%",
+    string = "Display",
     color = colors.white,
-    width = 28,
+    width = 50,
     align = "right",
     font = {
       family = settings.font.numbers,
@@ -27,14 +27,15 @@ local brightness = sbar.add("item", "widgets.brightness", {
 })
 
 local function update_brightness()
-  sbar.exec([[command -v brightness >/dev/null 2>&1 && brightness -l 2>/dev/null | awk '/brightness/ {printf "%d", ($NF * 100) + 0.5; found=1; exit} END {if (!found) printf "--"}']], function(result)
+  sbar.exec([[if command -v brightness >/dev/null 2>&1; then brightness -l 2>/dev/null | awk '/brightness/ {printf "%d%%", ($NF * 100) + 0.5; found=1; exit} END {if (!found) printf "Display"}'; else printf "Display"; fi]], function(result)
     local value = (result or ""):gsub("%s+", "")
-    brightness:set({ label = value ~= "" and (value .. "%") or "--%" })
+    brightness:set({ label = value ~= "" and value or "Display" })
   end)
 end
 
 local function change_brightness(delta)
-  sbar.exec([[current=$(brightness -l 2>/dev/null | awk '/brightness/ {print $NF; exit}'); if [ -n "$current" ]; then next=$(awk -v c="$current" -v d="]] .. delta .. [[" 'BEGIN {v=c+d; if (v<0) v=0; if (v>1) v=1; printf "%.2f", v}'); brightness "$next" >/dev/null 2>&1; fi]], update_brightness)
+  local ddc_delta = delta > 0 and "5+" or "5-"
+  sbar.exec([[current=$(brightness -l 2>/dev/null | awk '/brightness/ {print $NF; exit}'); if [ -n "$current" ]; then next=$(awk -v c="$current" -v d="]] .. delta .. [[" 'BEGIN {v=c+d; if (v<0) v=0; if (v>1) v=1; printf "%.2f", v}'); brightness "$next" >/dev/null 2>&1; elif command -v ddcctl >/dev/null 2>&1; then ddcctl -d 1 -b ]] .. ddc_delta .. [[ >/dev/null 2>&1 || true; fi]], update_brightness)
 end
 
 brightness:subscribe({ "forced", "routine", "system_woke" }, update_brightness)

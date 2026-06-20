@@ -56,10 +56,10 @@ alt-f = 'fullscreen'
 alt-shift-space = 'layout floating tiling'
 alt-slash = 'layout tiles horizontal vertical'
 alt-comma = 'layout accordion horizontal vertical'
-alt-v = 'split vertical'
-alt-b = 'split horizontal'
+alt-v = 'layout vertical'
+alt-b = 'layout horizontal'
 alt-shift-b = 'balance-sizes'
-alt-q = ['split vertical', 'move right', 'split horizontal', 'balance-sizes']
+alt-q = ['layout vertical', 'move right', 'layout horizontal', 'balance-sizes']
 
 alt-1 = 'workspace 1'
 alt-2 = 'workspace 2'
@@ -90,8 +90,8 @@ esc = ['reload-config', 'mode main']
 r = ['flatten-workspace-tree', 'mode main']
 b = ['balance-sizes', 'mode main']
 f = ['layout floating tiling', 'mode main']
-v = ['split vertical', 'mode main']
-s = ['split horizontal', 'mode main']
+v = ['layout vertical', 'mode main']
+s = ['layout horizontal', 'mode main']
 backspace = ['close-all-windows-but-current', 'mode main']
 
 h = ['resize width -50', 'mode service']

@@ -6,7 +6,7 @@ sbar.add("event", "appearance_status_changed")
 
 local popup_width = 230
 
-local control = sbar.add("item", "appearance.control", {
+local control = sbar.add("item", "appearance_control", {
   position = "right",
   update_freq = 60,
   icon = {
@@ -26,13 +26,13 @@ local control = sbar.add("item", "appearance.control", {
   popup = { align = "center" },
 })
 
-sbar.add("item", "appearance.padding", {
+sbar.add("item", "appearance_padding", {
   position = "right",
   width = settings.group_paddings,
 })
 
 local function popup_item(name, icon, label, click_script)
-  return sbar.add("item", "appearance.menu." .. name, {
+  return sbar.add("item", "appearance_popup_" .. name, {
     position = "popup." .. control.name,
     width = popup_width,
     align = "center",
@@ -159,14 +159,13 @@ control:subscribe("mouse.clicked", function()
   set_popup(should_draw)
 end)
 
-control:subscribe("mouse.exited.global", function()
-  set_popup(false)
+control:subscribe("mouse.entered", function()
+  update_status()
+  set_popup(true)
 end)
 
-control:subscribe("mouse.entered", function()
-  sbar.animate("tanh", 14, function()
-    control:set({ background = { color = colors.bg2 } })
-  end)
+control:subscribe("mouse.exited.global", function()
+  set_popup(false)
 end)
 
 control:subscribe("mouse.exited", function()

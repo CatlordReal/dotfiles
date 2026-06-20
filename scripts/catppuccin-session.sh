@@ -5,6 +5,7 @@ ACTION="${1:-toggle}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 STATE_DIR="$CONFIG_HOME/ricing"
 SESSION_STATE="$STATE_DIR/session_enabled"
+JANKYBORDERS_STATE="$STATE_DIR/jankyborders_enabled"
 FLAVOUR="${2:-$(cat "$STATE_DIR/theme" 2>/dev/null || printf 'mocha')}"
 NVIM_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/nvim"
 
@@ -64,6 +65,7 @@ stop_aerospace() {
 start_sketchybar() {
   command -v sketchybar >/dev/null 2>&1 || return 0
   ln -sf "$SKETCHYBAR_PLIST" "$SKETCHYBAR_AGENT"
+  pkill -f "$CONFIG_HOME/sketchybar/sketchybarrc" >/dev/null 2>&1 || true
   if service_loaded "$SKETCHYBAR_LABEL"; then
     launchctl kickstart -k "gui/$UID_VALUE/$SKETCHYBAR_LABEL" >/dev/null 2>&1 || true
   else
@@ -81,13 +83,19 @@ stop_sketchybar() {
 
 start_session() {
   local flavour
+  local was_enabled
+  if is_enabled; then was_enabled=1; else was_enabled=0; fi
   flavour="$(normalise_flavour "$1")"
   mark_enabled 1
   sync_neovim_theme_state "$flavour"
   start_aerospace
   start_sketchybar
   "$TILING_SCRIPT" apply "$flavour"
-  "$JANKYBORDERS_SCRIPT" apply "$flavour" >/dev/null 2>&1 || true
+  if [[ "$was_enabled" == "1" && "$(cat "$JANKYBORDERS_STATE" 2>/dev/null || printf '1')" != "1" ]]; then
+    "$JANKYBORDERS_SCRIPT" suspend >/dev/null 2>&1 || true
+  else
+    "$JANKYBORDERS_SCRIPT" apply "$flavour" >/dev/null 2>&1 || true
+  fi
   "$SKETCHYVIM_SCRIPT" apply >/dev/null 2>&1 || true
   sketchybar --trigger aerospace_workspace_change >/dev/null 2>&1 || true
 }

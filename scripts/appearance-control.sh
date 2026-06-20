@@ -8,6 +8,7 @@ STATE_DIR="$CONFIG_HOME/ricing"
 THEME_FILE="$STATE_DIR/theme"
 SESSION_STATE="$STATE_DIR/session_enabled"
 AUTO_FILE="$STATE_DIR/auto_appearance_enabled"
+JANKYBORDERS_STATE="$STATE_DIR/jankyborders_enabled"
 KITTY_CONFIG="$CONFIG_HOME/kitty/kitty.conf"
 SESSION_SCRIPT="$CONFIG_HOME/scripts/catppuccin-session.sh"
 TILING_SCRIPT="$CONFIG_HOME/scripts/catppuccin-tiling-mode.sh"
@@ -50,6 +51,10 @@ session_enabled() {
   [[ "$(cat "$SESSION_STATE" 2>/dev/null || printf '0')" == "1" ]]
 }
 
+borders_enabled() {
+  [[ "$(cat "$JANKYBORDERS_STATE" 2>/dev/null || printf '0')" == "1" ]]
+}
+
 macos_theme() {
   if [[ "$(defaults read -g AppleInterfaceStyle 2>/dev/null || true)" == "Dark" ]]; then
     printf 'mocha\n'
@@ -61,6 +66,12 @@ macos_theme() {
 trigger_status() {
   command -v sketchybar >/dev/null 2>&1 || return 0
   sketchybar --trigger appearance_status_changed >/dev/null 2>&1 || true
+}
+
+reload_sketchybar() {
+  command -v sketchybar >/dev/null 2>&1 || return 0
+  pkill -f "$CONFIG_HOME/sketchybar/sketchybarrc" >/dev/null 2>&1 || true
+  sketchybar --reload >/dev/null 2>&1 || true
 }
 
 apply_theme() {
@@ -128,9 +139,13 @@ case "$ACTION" in
   reload-all)
     aerospace reload-config >/dev/null 2>&1 || true
     "$TILING_SCRIPT" colors "$(current_theme)" >/dev/null 2>&1 || true
-    "$JANKYBORDERS_SCRIPT" apply "$(current_theme)" >/dev/null 2>&1 || true
+    if borders_enabled; then
+      "$JANKYBORDERS_SCRIPT" apply "$(current_theme)" >/dev/null 2>&1 || true
+    else
+      "$JANKYBORDERS_SCRIPT" suspend >/dev/null 2>&1 || true
+    fi
     "$SKETCHYVIM_SCRIPT" apply >/dev/null 2>&1 || true
-    sketchybar --reload >/dev/null 2>&1 || true
+    reload_sketchybar
     "$SOUND_SCRIPT" play reload >/dev/null 2>&1 || true
     trigger_status
     ;;

@@ -42,8 +42,8 @@
 - `Alt+Shift+Space`: toggle floating/tiling.
 - `Alt+/`: toggle tile orientation.
 - `Alt+,`: accordion layout.
-- `Alt+v`: split vertical.
-- `Alt+b`: split horizontal.
+- `Alt+v`: force vertical tile orientation.
+- `Alt+b`: force horizontal tile orientation.
 - `Alt+Shift+b`: balance sizes.
 - `Alt+q`: shape a three-window layout as one half plus two quarters.
 - `Alt+1` through `Alt+9`: switch workspace.
@@ -58,8 +58,8 @@ Service mode:
 - `r`: flatten workspace tree.
 - `b`: balance sizes.
 - `f`: toggle floating/tiling.
-- `v`: split vertical.
-- `s`: split horizontal.
+- `v`: force vertical tile orientation.
+- `s`: force horizontal tile orientation.
 - `h/j/k/l`: resize width/height.
 - `Alt+Shift+h/j/k/l`: join with neighbour in that direction.
 - `Backspace`: close all windows except current.
@@ -69,15 +69,15 @@ Service mode:
 Caps Lock is scoped to Kitty only:
 
 - Tap Caps in Kitty: Escape.
-- Hold Caps in Kitty: Hyper (`Control+Option+Command+Shift`).
 - Outside Kitty: normal Caps Lock.
+- Right Shift: Hyper (`Control+Option+Command+Shift`).
 
 Hyper shortcuts:
 
 - `Hyper+Enter`: open Kitty.
 - `Hyper+M`: open Music.
 - `Hyper+F`: open Finder.
-- `Hyper+R`: reload AeroSpace, SketchyBar and JankyBorders.
+- `Hyper+R`: reload all ricing components.
 - `Hyper+T`: toggle the full Catppuccin tiling session.
 - `Hyper+1` through `Hyper+9`: switch AeroSpace workspace.
 - `Hyper+h/j/k/l`: focus left/down/up/right via AeroSpace.
@@ -87,6 +87,16 @@ Fallback:
 
 - `Control+Option+Command+T`: toggle the full Catppuccin tiling session.
 
+
+## SketchyVim
+
+- Click the `svim` widget to toggle SketchyVim.
+- `~/.config/scripts/sketchyvim-toggle.sh status`: check state.
+- `~/.config/scripts/sketchyvim-toggle.sh toggle`: toggle state.
+- It turns supported macOS input fields into Vim-like buffers. Use normal Vim movement/editing habits in text fields.
+- Current blacklist: Kitty, Terminal, Codex, Code, Neovim-style apps and other terminal editors.
+- Current custom remaps: `ß` maps to `$`; `Ctrl+k` and `Ctrl+l` move the current line down/up through the example SketchyVim mappings.
+
 ## SketchyBar Controls
 
 - Click the workspace items to switch AeroSpace workspaces.
@@ -95,10 +105,10 @@ Fallback:
 - Scroll over volume to adjust volume.
 - Click volume to show output devices when `SwitchAudioSource` is available.
 - Click network to show interface, hostname, IP and router.
-- Scroll over brightness to adjust in 5% steps.
-- Click brightness to open Displays settings.
+- Scroll over brightness to adjust in 5% steps when macOS or DDC exposes the display brightness.
+- Click brightness to open Displays settings. On unsupported displays it shows `Display` and acts as a shortcut.
 - Click weather to open `wttr.in`.
-- Click the appearance gear to open the appearance popup.
+- Click or hover the appearance gear to open the appearance popup.
 - The appearance gear stays visible on empty desktops; noisy telemetry widgets hide when the focused workspace has no windows.
 - Click the centre Shelf item to open the shelf folder.
 - Right-click or hover the Shelf item to show pinned files.

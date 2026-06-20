@@ -4,7 +4,7 @@
       "complex_modifications": {
         "rules": [
           {
-            "description": "Caps Lock taps Escape and holds Hyper in Kitty",
+            "description": "Caps Lock taps Escape in Kitty only",
             "manipulators": [
               {
                 "from": {
@@ -16,22 +16,11 @@
                   }
                 },
                 "parameters": {
-                  "basic.to_if_alone_timeout_milliseconds": 180,
-                  "basic.to_if_held_down_threshold_milliseconds": 180
+                  "basic.to_if_alone_timeout_milliseconds": 180
                 },
                 "to_if_alone": [
                   {
                     "key_code": "escape"
-                  }
-                ],
-                "to_if_held_down": [
-                  {
-                    "key_code": "left_shift",
-                    "modifiers": [
-                      "left_command",
-                      "left_control",
-                      "left_option"
-                    ]
                   }
                 ],
                 "type": "basic",
@@ -40,6 +29,32 @@
                     "type": "frontmost_application_if",
                     "bundle_identifiers": [
                       "^net\\.kovidgoyal\\.kitty$"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "description": "Right Shift holds Hyper",
+            "manipulators": [
+              {
+                "type": "basic",
+                "from": {
+                  "key_code": "right_shift",
+                  "modifiers": {
+                    "optional": [
+                      "any"
+                    ]
+                  }
+                },
+                "to": [
+                  {
+                    "key_code": "left_shift",
+                    "modifiers": [
+                      "left_control",
+                      "left_option",
+                      "left_command"
                     ]
                   }
                 ]
@@ -133,7 +148,7 @@
                 },
                 "to": [
                   {
-                    "shell_command": "/opt/homebrew/bin/aerospace reload-config; /opt/homebrew/bin/sketchybar --reload; /Users/kianconti/.config/scripts/jankyborders.sh start"
+                    "shell_command": "/Users/kianconti/.config/scripts/appearance-control.sh reload-all"
                   }
                 ]
               },
