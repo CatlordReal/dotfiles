@@ -111,6 +111,7 @@ Fallback:
 - Click weather to open `wttr.in`.
 - Click the appearance gear to open the appearance popup.
 - The appearance gear stays visible on empty desktops; noisy telemetry widgets hide when the focused workspace has no windows.
+- Right-side telemetry is ordered as network, memory, GPU, CPU, volume and settings.
 - Click the centre Shelf item to open the shelf folder.
 - Right-click or hover the Shelf item to show pinned files.
 

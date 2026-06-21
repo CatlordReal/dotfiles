@@ -16,6 +16,7 @@ KITTY_OPACITY_SCRIPT="$CONFIG_HOME/scripts/kitty-opacity.sh"
 SOUND_SCRIPT="$CONFIG_HOME/scripts/aesthetic-sound.sh"
 JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
 SKETCHYVIM_SCRIPT="$CONFIG_HOME/scripts/sketchyvim-toggle.sh"
+SKETCHYBAR_HEALTH_SCRIPT="$CONFIG_HOME/scripts/sketchybar-health.sh"
 SKETCHYBAR_PLIST="$CONFIG_HOME/sketchybar/com.kianconti.sketchybar.plist"
 SKETCHYBAR_LABEL="com.kianconti.sketchybar"
 SKETCHYBAR_AGENT="$HOME/Library/LaunchAgents/$SKETCHYBAR_LABEL.plist"
@@ -74,15 +75,7 @@ trigger_status() {
 
 reload_sketchybar() {
   command -v sketchybar >/dev/null 2>&1 || return 0
-  mkdir -p "$HOME/Library/LaunchAgents"
-  ln -sf "$SKETCHYBAR_PLIST" "$SKETCHYBAR_AGENT"
-  if pgrep -x sketchybar >/dev/null 2>&1; then
-    sketchybar --remove widgets.brightness widgets.brightness.bracket widgets.brightness.padding >/dev/null 2>&1 || true
-    sketchybar --reload >/dev/null 2>&1 || true
-  else
-    launchctl bootstrap "gui/$UID_VALUE" "$SKETCHYBAR_AGENT" >/dev/null 2>&1 || true
-    launchctl kickstart -k "gui/$UID_VALUE/$SKETCHYBAR_LABEL" >/dev/null 2>&1 || true
-  fi
+  "$SKETCHYBAR_HEALTH_SCRIPT" ensure >/dev/null 2>&1 || true
 }
 
 apply_theme() {

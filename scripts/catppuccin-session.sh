@@ -12,6 +12,7 @@ NVIM_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/nvim"
 TILING_SCRIPT="$CONFIG_HOME/scripts/catppuccin-tiling-mode.sh"
 JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
 SKETCHYVIM_SCRIPT="$CONFIG_HOME/scripts/sketchyvim-toggle.sh"
+SKETCHYBAR_HEALTH_SCRIPT="$CONFIG_HOME/scripts/sketchybar-health.sh"
 SKETCHYBAR_PLIST="$CONFIG_HOME/sketchybar/com.kianconti.sketchybar.plist"
 SKETCHYBAR_LABEL="com.kianconti.sketchybar"
 SKETCHYBAR_AGENT="$HOME/Library/LaunchAgents/$SKETCHYBAR_LABEL.plist"
@@ -64,13 +65,7 @@ stop_aerospace() {
 
 start_sketchybar() {
   command -v sketchybar >/dev/null 2>&1 || return 0
-  ln -sf "$SKETCHYBAR_PLIST" "$SKETCHYBAR_AGENT"
-  if service_loaded "$SKETCHYBAR_LABEL"; then
-    launchctl kickstart -k "gui/$UID_VALUE/$SKETCHYBAR_LABEL" >/dev/null 2>&1 || true
-  else
-    launchctl bootstrap "gui/$UID_VALUE" "$SKETCHYBAR_AGENT" >/dev/null 2>&1 || true
-    launchctl kickstart -k "gui/$UID_VALUE/$SKETCHYBAR_LABEL" >/dev/null 2>&1 || true
-  fi
+  "$SKETCHYBAR_HEALTH_SCRIPT" ensure >/dev/null 2>&1 || true
 }
 
 stop_sketchybar() {

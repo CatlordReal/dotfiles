@@ -132,9 +132,9 @@ local function parse_workspace_state(output)
   -- Keep controls visible even on an empty desktop; only hide telemetry/media noise.
   for _, pattern in ipairs({
     "/widgets\\.cpu.*/",
+    "/widgets\\.gpu.*/",
     "/widgets\\.memory.*/",
     "/widgets\\.network.*/",
-    "/widgets\\.brightness.*/",
     "/widgets\\.weather.*/",
     "/widgets\\.volume.*/",
     "/widgets\\.svim.*/",
