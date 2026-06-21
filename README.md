@@ -25,6 +25,7 @@
 - `<leader>ct`: enter Catppuccin tiling mode.
 - `<leader>cb`: toggle JankyBorders.
 - `:ColorTheme`: open the colour theme picker.
+- `:ColorThemeSet catppuccin-mocha`: set a theme directly for testing/automation.
 - `:CatppuccinSessionToggle`: toggle the full ricing session.
 - `:CatppuccinTilingMode`: enter Catppuccin tiling mode.
 - `:CatppuccinTilingRestore`: restore the previous desktop mode.
@@ -115,7 +116,7 @@ Fallback:
 
 Appearance popup:
 
-- Choose Catppuccin Latte, Frappe, Macchiato or Mocha. This also syncs the matching Catppuccin wallpaper. Non-Frappe flavours set macOS appearance to Dark. Manual flavour changes turn auto appearance sync off so they do not get immediately overwritten.
+- Choose Catppuccin Latte, Frappe, Macchiato or Mocha. This also syncs the matching Catppuccin wallpaper. Latte sets macOS appearance to Light. Frappe, Macchiato and Mocha set it to Dark. Manual flavour changes turn auto appearance sync off so they do not get immediately overwritten.
 - Toggle automatic macOS light/dark appearance sync.
 - Set Kitty opacity to 60%, 70%, 85% or 100%.
 - Toggle subtle UI sounds.
@@ -195,7 +196,7 @@ Shelf:
 
 ## Native Menu Bar
 
-SwiftBar is installed for a normal macOS menu-bar control. It uses `~/.config/swiftbar/catppuccin-rice.1m.sh` and exposes rice toggle, reload all, Catppuccin themes and Kitty opacity.
+No separate SwiftBar helper is configured. Use the SketchyBar settings item, Neovim controls, or the shell scripts below.
 
 ## Manual Reloads
 

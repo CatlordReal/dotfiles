@@ -1076,6 +1076,17 @@ vim.api.nvim_create_user_command("CatppuccinFlavour", choose_catppuccin_flavour,
 vim.api.nvim_create_user_command("ColorTheme", choose_catppuccin_flavour, {
     desc = "Pick colour theme",
 })
+vim.api.nvim_create_user_command("ColorThemeSet", function(opts)
+    apply_color_theme(opts.args)
+end, {
+    nargs = 1,
+    complete = function()
+        local ids = vim.tbl_keys(color_theme_by_id)
+        table.sort(ids)
+        return ids
+    end,
+    desc = "Set colour theme by id",
+})
 vim.api.nvim_create_user_command("KittyThemeSync", function()
     local ok, err = sync_kitty_theme(vim.g.color_theme or catppuccin_flavour_to_theme_id(vim.g.catppuccin_flavour))
     if not ok then

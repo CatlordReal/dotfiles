@@ -114,7 +114,7 @@ Catppuccin themes sync across:
 - SketchyBar.
 - JankyBorders.
 - Wallpaper.
-- macOS appearance: Catppuccin flavours except Frappe set system appearance to Dark. Manual flavour changes disable auto appearance sync; reload-all and auto-sync preserve the auto setting.
+- macOS appearance: Catppuccin Latte sets system appearance to Light; Frappe, Macchiato and Mocha set it to Dark. Manual flavour changes disable auto appearance sync; reload-all and auto-sync preserve the auto setting.
 - Desktop icon visibility.
 - Kitty background opacity.
 - Starship palette for new prompts.
@@ -183,11 +183,9 @@ Commands:
 ## AeroSpace
 
 
-SwiftBar:
+Native menu-bar helper:
 
-- plugin: `swiftbar/catppuccin-rice.1m.sh`.
-- LaunchAgent: `swiftbar/com.kianconti.swiftbar.plist`.
-- plugin link target: `~/Library/Application Support/SwiftBar/Plugins/catppuccin-rice.1m.sh`.
+- SwiftBar integration was removed from startup and dotfiles. SketchyBar remains the visual/control surface.
 
 Layout philosophy:
 

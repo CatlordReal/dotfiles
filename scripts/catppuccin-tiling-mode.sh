@@ -250,8 +250,11 @@ sync_wallpaper() {
 sync_system_appearance() {
   local flavour
   flavour="$(normalise_flavour "$1")"
-  [[ "$flavour" == "frappe" ]] && return 0
-  run_with_timeout 5 osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' >/dev/null 2>&1 || true
+  if [[ "$flavour" == "latte" ]]; then
+    run_with_timeout 5 osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false' >/dev/null 2>&1 || true
+  else
+    run_with_timeout 5 osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' >/dev/null 2>&1 || true
+  fi
 }
 
 desktop_icon_state() {
