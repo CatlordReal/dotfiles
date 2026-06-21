@@ -16,6 +16,10 @@ KITTY_OPACITY_SCRIPT="$CONFIG_HOME/scripts/kitty-opacity.sh"
 SOUND_SCRIPT="$CONFIG_HOME/scripts/aesthetic-sound.sh"
 JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
 SKETCHYVIM_SCRIPT="$CONFIG_HOME/scripts/sketchyvim-toggle.sh"
+SKETCHYBAR_PLIST="$CONFIG_HOME/sketchybar/com.kianconti.sketchybar.plist"
+SKETCHYBAR_LABEL="com.kianconti.sketchybar"
+SKETCHYBAR_AGENT="$HOME/Library/LaunchAgents/$SKETCHYBAR_LABEL.plist"
+UID_VALUE="$(id -u)"
 
 mkdir -p "$STATE_DIR"
 
@@ -70,8 +74,15 @@ trigger_status() {
 
 reload_sketchybar() {
   command -v sketchybar >/dev/null 2>&1 || return 0
-  pkill -f "$CONFIG_HOME/sketchybar/sketchybarrc" >/dev/null 2>&1 || true
-  sketchybar --reload >/dev/null 2>&1 || true
+  mkdir -p "$HOME/Library/LaunchAgents"
+  ln -sf "$SKETCHYBAR_PLIST" "$SKETCHYBAR_AGENT"
+  if pgrep -x sketchybar >/dev/null 2>&1; then
+    sketchybar --remove widgets.brightness widgets.brightness.bracket widgets.brightness.padding >/dev/null 2>&1 || true
+    sketchybar --reload >/dev/null 2>&1 || true
+  else
+    launchctl bootstrap "gui/$UID_VALUE" "$SKETCHYBAR_AGENT" >/dev/null 2>&1 || true
+    launchctl kickstart -k "gui/$UID_VALUE/$SKETCHYBAR_LABEL" >/dev/null 2>&1 || true
+  fi
 }
 
 apply_theme() {
@@ -105,7 +116,7 @@ auto_sync() {
   target="$(macos_theme)"
   current="$(current_theme)"
   [[ "$target" == "$current" ]] && return 0
-  "$SESSION_SCRIPT" on "$target" >/dev/null 2>&1 || true
+  CATPPUCCIN_AUTO_SYNC=1 "$SESSION_SCRIPT" on "$target" >/dev/null 2>&1 || true
   trigger_status
 }
 
@@ -138,7 +149,7 @@ case "$ACTION" in
     ;;
   reload-all)
     aerospace reload-config >/dev/null 2>&1 || true
-    "$TILING_SCRIPT" colors "$(current_theme)" >/dev/null 2>&1 || true
+    CATPPUCCIN_KEEP_AUTO=1 "$TILING_SCRIPT" colors "$(current_theme)" >/dev/null 2>&1 || true
     if borders_enabled; then
       "$JANKYBORDERS_SCRIPT" apply "$(current_theme)" >/dev/null 2>&1 || true
     else

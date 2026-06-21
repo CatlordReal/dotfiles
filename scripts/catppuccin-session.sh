@@ -65,7 +65,6 @@ stop_aerospace() {
 start_sketchybar() {
   command -v sketchybar >/dev/null 2>&1 || return 0
   ln -sf "$SKETCHYBAR_PLIST" "$SKETCHYBAR_AGENT"
-  pkill -f "$CONFIG_HOME/sketchybar/sketchybarrc" >/dev/null 2>&1 || true
   if service_loaded "$SKETCHYBAR_LABEL"; then
     launchctl kickstart -k "gui/$UID_VALUE/$SKETCHYBAR_LABEL" >/dev/null 2>&1 || true
   else

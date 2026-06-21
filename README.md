@@ -77,6 +77,8 @@ Hyper shortcuts:
 - `Hyper+Enter`: open Kitty.
 - `Hyper+M`: open Music.
 - `Hyper+F`: open Finder.
+- `Hyper+C`: open ChatGPT.
+- `Hyper+X`: open Codex.
 - `Hyper+R`: reload all ricing components.
 - `Hyper+T`: toggle the full Catppuccin tiling session.
 - `Hyper+1` through `Hyper+9`: switch AeroSpace workspace.
@@ -105,17 +107,15 @@ Fallback:
 - Scroll over volume to adjust volume.
 - Click volume to show output devices when `SwitchAudioSource` is available.
 - Click network to show interface, hostname, IP and router.
-- Scroll over brightness to adjust in 5% steps when macOS or DDC exposes the display brightness.
-- Click brightness to open Displays settings. On unsupported displays it shows `Display` and acts as a shortcut.
 - Click weather to open `wttr.in`.
-- Click or hover the appearance gear to open the appearance popup.
+- Click the appearance gear to open the appearance popup.
 - The appearance gear stays visible on empty desktops; noisy telemetry widgets hide when the focused workspace has no windows.
 - Click the centre Shelf item to open the shelf folder.
 - Right-click or hover the Shelf item to show pinned files.
 
 Appearance popup:
 
-- Choose Catppuccin Latte, Frappe, Macchiato or Mocha.
+- Choose Catppuccin Latte, Frappe, Macchiato or Mocha. This also syncs the matching Catppuccin wallpaper. Non-Frappe flavours set macOS appearance to Dark. Manual flavour changes turn auto appearance sync off so they do not get immediately overwritten.
 - Toggle automatic macOS light/dark appearance sync.
 - Set Kitty opacity to 60%, 70%, 85% or 100%.
 - Toggle subtle UI sounds.

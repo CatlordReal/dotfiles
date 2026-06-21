@@ -20,6 +20,12 @@ DEFAULT_OPACITY="${CATPPUCCIN_TILING_OPACITY:-70}"
 
 mkdir -p "$STATE_DIR" "$SKETCHYBAR_DIR" "$SKETCHYBAR_DIR/helpers"
 
+mark_manual_theme_choice() {
+  [[ "${CATPPUCCIN_AUTO_SYNC:-0}" == "1" ]] && return 0
+  [[ "${CATPPUCCIN_KEEP_AUTO:-0}" == "1" ]] && return 0
+  printf '0\n' > "$STATE_DIR/auto_appearance_enabled"
+}
+
 normalise_flavour() {
   local value
   value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
@@ -230,6 +236,24 @@ set_wallpaper() {
   run_with_timeout 8 osascript -e "tell application \"System Events\" to tell every desktop to set picture to \"$wallpaper\"" >/dev/null 2>&1 || return 1
 }
 
+sync_wallpaper() {
+  local flavour wallpaper
+  flavour="$(normalise_flavour "$1")"
+  wallpaper="$(wallpaper_for_flavour "$flavour")"
+  if [[ -n "$wallpaper" ]]; then
+    set_wallpaper "$wallpaper" || printf 'warning: could not set wallpaper: %s\n' "$wallpaper" >&2
+  else
+    printf 'warning: no %s wallpaper found in %s\n' "$flavour" "$WALLPAPER_DIR" >&2
+  fi
+}
+
+sync_system_appearance() {
+  local flavour
+  flavour="$(normalise_flavour "$1")"
+  [[ "$flavour" == "frappe" ]] && return 0
+  run_with_timeout 5 osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' >/dev/null 2>&1 || true
+}
+
 desktop_icon_state() {
   defaults read com.apple.finder CreateDesktop 2>/dev/null || printf '__unset__\n'
 }
@@ -294,19 +318,15 @@ sync_starship_palette() {
 }
 
 apply_mode() {
-  local flavour wallpaper
+  local flavour
   flavour="$(normalise_flavour "$1")"
 
   save_state_once
+  mark_manual_theme_choice
   write_sketchybar_colors "$flavour"
   sync_kitty_theme "$flavour"
-
-  wallpaper="$(wallpaper_for_flavour "$flavour")"
-  if [[ -n "$wallpaper" ]]; then
-    set_wallpaper "$wallpaper" || printf 'warning: could not set wallpaper: %s\n' "$wallpaper" >&2
-  else
-    printf 'warning: no %s wallpaper found in %s\n' "$flavour" "$WALLPAPER_DIR" >&2
-  fi
+  sync_wallpaper "$flavour"
+  sync_system_appearance "$flavour"
 
   set_desktop_icons false
   "$KITTY_OPACITY_SCRIPT" "$DEFAULT_OPACITY" >/dev/null || true
@@ -359,8 +379,11 @@ case "$ACTION" in
     restore_mode
     ;;
   colors)
+    mark_manual_theme_choice
     write_sketchybar_colors "$FLAVOUR"
     sync_kitty_theme "$FLAVOUR"
+    sync_wallpaper "$FLAVOUR"
+    sync_system_appearance "$FLAVOUR"
     mark_state "$(cat "$STATE_DIR/active" 2>/dev/null || printf '0')" "$FLAVOUR"
     if [[ "$(cat "$STATE_DIR/jankyborders_enabled" 2>/dev/null || printf '1')" == "1" ]]; then
       "$JANKYBORDERS_SCRIPT" apply "$FLAVOUR" >/dev/null 2>&1 || true

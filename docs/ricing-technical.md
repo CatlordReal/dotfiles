@@ -62,8 +62,8 @@ Widgets:
 - Workspace app icons where practical.
 - Focused app.
 - Apple Music artwork, title, artist and popup controls.
-- Volume, brightness, appearance, SketchyVim, memory, CPU, network, weather and calendar, ordered so CPU/memory sit next to network and settings sit next to SketchyVim.
-- Appearance gear with Catppuccin flavour, full rice toggle, auto appearance, Kitty opacity, sound and reload-all controls.
+- Appearance, volume, memory, CPU, network, weather and SketchyVim, ordered so settings sits right of volume and SketchyVim sits at the far-left edge of the right widget cluster.
+- Appearance gear with Catppuccin flavour, matching wallpaper sync, full rice toggle, auto appearance, Kitty opacity, sound and reload-all controls. The popup opens on click only.
 - Centre Shelf item with a Finder-backed folder and popup list.
 
 The running SketchyBar binary exposes click, scroll and hover events, but not a native external file-drop event. The Shelf item uses a real folder at `~/.config/ricing/shelf`; files can be dragged into and out of that folder in Finder while the bar shows count and recent entries.
@@ -114,6 +114,7 @@ Catppuccin themes sync across:
 - SketchyBar.
 - JankyBorders.
 - Wallpaper.
+- macOS appearance: Catppuccin flavours except Frappe set system appearance to Dark. Manual flavour changes disable auto appearance sync; reload-all and auto-sync preserve the auto setting.
 - Desktop icon visibility.
 - Kitty background opacity.
 - Starship palette for new prompts.

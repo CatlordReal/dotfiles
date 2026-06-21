@@ -159,13 +159,14 @@ control:subscribe("mouse.clicked", function()
   set_popup(should_draw)
 end)
 
-control:subscribe("mouse.entered", function()
-  update_status()
-  set_popup(true)
-end)
-
 control:subscribe("mouse.exited.global", function()
   set_popup(false)
+end)
+
+control:subscribe("mouse.entered", function()
+  sbar.animate("tanh", 14, function()
+    control:set({ background = { color = colors.bg2 } })
+  end)
 end)
 
 control:subscribe("mouse.exited", function()
