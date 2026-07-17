@@ -74,8 +74,14 @@ trigger_status() {
 }
 
 reload_sketchybar() {
+  session_enabled || return 0
   command -v sketchybar >/dev/null 2>&1 || return 0
   "$SKETCHYBAR_HEALTH_SCRIPT" ensure >/dev/null 2>&1 || true
+}
+
+toggle_session() {
+  "$SESSION_SCRIPT" toggle "$(current_theme)" >/dev/null 2>&1 || true
+  "$SOUND_SCRIPT" play toggle >/dev/null 2>&1 || true
 }
 
 apply_theme() {
@@ -154,9 +160,7 @@ case "$ACTION" in
     trigger_status
     ;;
   toggle-session)
-    "$SESSION_SCRIPT" toggle "$(current_theme)" >/dev/null 2>&1 || true
-    "$SOUND_SCRIPT" play toggle >/dev/null 2>&1 || true
-    trigger_status
+    toggle_session
     ;;
   *)
     printf 'Usage: %s status|theme <flavour>|opacity <percent>|toggle-auto|auto-sync|toggle-sounds|toggle-session|reload|reload-all\n' "${0##*/}" >&2

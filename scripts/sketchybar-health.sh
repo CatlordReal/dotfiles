@@ -18,7 +18,7 @@ service_loaded() {
 
 start_daemon() {
   command -v "$SKETCHYBAR_BIN" >/dev/null 2>&1 || return 1
-  ln -sf "$SKETCHYBAR_PLIST" "$SKETCHYBAR_AGENT"
+  ln -sf "$SKETCHYBAR_PLIST" "$SKETCHYBAR_AGENT" >/dev/null 2>&1 || true
   if service_loaded; then
     if ! pgrep -x sketchybar >/dev/null 2>&1; then
       launchctl kickstart -k "gui/$UID_VALUE/$SKETCHYBAR_LABEL" >/dev/null 2>&1 || true

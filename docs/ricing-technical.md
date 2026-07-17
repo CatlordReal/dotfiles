@@ -52,9 +52,9 @@ Important files:
 - `settings.lua`: font and spacing settings.
 - `items/spaces.lua`: AeroSpace workspace indicators and app icons.
 - `items/shelf.lua`: centre Shelf item and popup list.
-- `items/widgets/appearance.lua`: appearance dropdown, collapsible colour/opacity sections, session toggle, reload-all button and status poller.
+- `items/widgets/appearance.lua`: SketchyBar gear item that opens `scripts/appearance-menu.sh`; direct SketchyBar popup rows are avoided because they dropped clicks on this setup.
 - `items/media.lua`: Apple Music / Now Playing.
-- `items/widgets/*.lua`: right-side widgets, including memory, GPU and CPU telemetry.
+- `items/widgets/resources.lua`: compact memory, GPU and CPU telemetry group.
 
 Widgets:
 
@@ -62,7 +62,7 @@ Widgets:
 - Workspace app icons where practical.
 - Focused app.
 - Apple Music artwork, title, artist and popup controls.
-- Appearance, volume, CPU, GPU, memory, network, weather and SketchyVim. Visual order places network, memory, GPU and CPU together, with settings right of volume and SketchyVim at the far-left edge of the right widget cluster.
+- Appearance, volume, compact resources, network and SketchyVim. Visual order places network, memory/GPU/CPU together, with settings right of volume and SketchyVim at the far-left edge of the right widget cluster.
 - Appearance gear with Catppuccin flavour, matching wallpaper sync, full rice toggle, auto appearance, Kitty opacity, sound and reload-all controls. The popup opens on click only.
 - Centre Shelf item with a Finder-backed folder and popup list.
 

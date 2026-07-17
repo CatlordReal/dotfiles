@@ -343,7 +343,7 @@ apply_mode() {
 }
 
 restore_mode() {
-  local previous_wallpaper previous_icons previous_opacity
+  local previous_wallpaper previous_icons
 
   write_sketchybar_colors "$(normalise_flavour "$FLAVOUR")"
   sync_kitty_theme "$FLAVOUR"
@@ -360,12 +360,7 @@ restore_mode() {
     set_desktop_icons false
   fi
 
-  previous_opacity="$(cat "$STATE_DIR/previous_kitty_opacity" 2>/dev/null || printf '__unset__\n')"
-  if [[ "$previous_opacity" == "__unset__" || -z "$previous_opacity" ]]; then
-    remove_kitty_opacity
-  else
-    "$KITTY_OPACITY_SCRIPT" "$previous_opacity" >/dev/null || true
-  fi
+  "$KITTY_OPACITY_SCRIPT" 100 >/dev/null || true
 
   mark_state 0 "$FLAVOUR"
   "$JANKYBORDERS_SCRIPT" suspend >/dev/null 2>&1 || true

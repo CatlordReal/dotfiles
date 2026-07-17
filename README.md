@@ -108,10 +108,9 @@ Fallback:
 - Scroll over volume to adjust volume.
 - Click volume to show output devices when `SwitchAudioSource` is available.
 - Click network to show interface, hostname, IP and router.
-- Click weather to open `wttr.in`.
-- Click the appearance gear to open the appearance popup.
+- Click the appearance gear to open the native Catppuccin Rice menu. Right-click it to reload all.
 - The appearance gear stays visible on empty desktops; noisy telemetry widgets hide when the focused workspace has no windows.
-- Right-side telemetry is ordered as network, memory, GPU, CPU, volume and settings.
+- Right-side telemetry is ordered as network, compact memory/GPU/CPU, volume and settings.
 - Click the centre Shelf item to open the shelf folder.
 - Right-click or hover the Shelf item to show pinned files.
 
@@ -123,6 +122,11 @@ Appearance popup:
 - Toggle subtle UI sounds.
 - Toggle the full rice session on/off.
 - Reload all: AeroSpace, SketchyBar, JankyBorders, SketchyVim and theme colours.
+
+Normal macOS menu bar:
+
+- Click the `Rice Control` grid icon to start or stop the full session when SketchyBar is not running.
+- Stopping restores Kitty opacity to 100%, then stops JankyBorders, SketchyBar and AeroSpace.
 
 Shelf:
 

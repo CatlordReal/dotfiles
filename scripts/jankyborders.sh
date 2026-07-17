@@ -9,9 +9,9 @@ PLIST="$CONFIG_HOME/borders/com.kianconti.borders.plist"
 LABEL="com.kianconti.borders"
 UID_VALUE="$(id -u)"
 BORDER_WIDTH="${JANKYBORDERS_WIDTH:-4.0}"
-# Use the native rounded style. This follows the current macOS window corner
-# shape exposed by the borders binary rather than hardcoding an old radius.
-BORDER_STYLE="${JANKYBORDERS_STYLE:-round}"
+# JankyBorders' uniform mode tracks the newer macOS window geometry better
+# than the legacy round treatment on current beta builds.
+BORDER_STYLE="${JANKYBORDERS_STYLE:-uniform}"
 BORDER_BLACKLIST="${JANKYBORDERS_BLACKLIST:-Dock,Window Server,Control Center,Notification Center,SystemUIServer,Spotlight,loginwindow,Phone,iPhone Mirroring,ContinuityCaptureAgent,FaceTime}"
 
 mkdir -p "$STATE_DIR" "$CONFIG_HOME/borders"

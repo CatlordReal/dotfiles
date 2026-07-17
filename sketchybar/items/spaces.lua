@@ -131,11 +131,8 @@ local function parse_workspace_state(output)
   local focused_has_windows = (workspace_counts[focused_workspace] or 0) > 0
   -- Keep controls visible even on an empty desktop; only hide telemetry/media noise.
   for _, pattern in ipairs({
-    "/widgets\\.cpu.*/",
-    "/widgets\\.gpu.*/",
-    "/widgets\\.memory.*/",
+    "/widgets\\.resources.*/",
     "/widgets\\.network.*/",
-    "/widgets\\.weather.*/",
     "/widgets\\.volume.*/",
     "/widgets\\.svim.*/",
   }) do

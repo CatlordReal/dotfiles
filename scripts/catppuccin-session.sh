@@ -107,9 +107,7 @@ apply_startup_state() {
   if is_enabled; then
     start_session "$FLAVOUR"
   else
-    "$JANKYBORDERS_SCRIPT" suspend >/dev/null 2>&1 || true
-    "$SKETCHYVIM_SCRIPT" suspend >/dev/null 2>&1 || true
-    stop_sketchybar
+    stop_session
   fi
 }
 
