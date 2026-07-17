@@ -37,7 +37,8 @@ main="$(choose "Catppuccin Rice" "Choose action" \
   "Toggle rice session" \
   "Toggle auto appearance" \
   "Toggle sounds" \
-  "Reload all")"
+  "Reload all" \
+  "Help & shortcuts")"
 
 case "$main" in
   "Colour theme")
@@ -77,5 +78,8 @@ case "$main" in
     ;;
   "Reload all")
     run_action reload-all
+    ;;
+  "Help & shortcuts")
+    /usr/bin/osascript -e 'display dialog "Alt+Q: half + two quarters\nAlt+Enter: open Kitty\nAlt+H/J/K/L: focus\nAlt+Shift+H/J/K/L: move\nAlt+1..9: workspace\nAlt+Shift+1..9: move + follow\nAlt+Ctrl+1..9: move without follow\nAlt+F: fullscreen\nAlt+Shift+Space: float/tiling\nAlt+Tab: previous workspace" with title "Rice shortcuts" buttons {"Close"} default button "Close"' >/dev/null 2>&1 || true
     ;;
 esac

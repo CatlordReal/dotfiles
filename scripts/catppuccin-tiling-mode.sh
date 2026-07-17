@@ -16,6 +16,7 @@ KITTY_OPACITY_SCRIPT="$CONFIG_HOME/scripts/kitty-opacity.sh"
 JANKYBORDERS_SCRIPT="$CONFIG_HOME/scripts/jankyborders.sh"
 SKETCHYVIM_SCRIPT="$CONFIG_HOME/scripts/sketchyvim-toggle.sh"
 SOUND_SCRIPT="$CONFIG_HOME/scripts/aesthetic-sound.sh"
+NVIM_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/nvim"
 DEFAULT_OPACITY="${CATPPUCCIN_TILING_OPACITY:-70}"
 
 mkdir -p "$STATE_DIR" "$SKETCHYBAR_DIR" "$SKETCHYBAR_DIR/helpers"
@@ -185,9 +186,16 @@ EOF
 }
 
 current_wallpaper() {
-  local wallpaper
-  wallpaper="$(osascript -e 'tell application "System Events" to tell desktop 1 to get picture' 2>/dev/null || true)"
+  local wallpaper database_wallpaper
+  database_wallpaper="$(/usr/bin/sqlite3 "$HOME/Library/Application Support/Dock/desktoppicture.db" \
+    'SELECT d.value FROM preferences p JOIN data d ON d.rowid = p.data_id WHERE p.key = 1 AND d.value LIKE "/%" ORDER BY p.rowid DESC LIMIT 1;' \
+    2>/dev/null || true)"
+  if [[ -n "$database_wallpaper" && -f "$database_wallpaper" ]]; then
+    printf '%s\n' "$database_wallpaper"
+    return 0
+  fi
 
+  wallpaper="$(osascript -e 'tell application "System Events" to tell desktop 1 to get picture' 2>/dev/null || true)"
   if [[ -n "$wallpaper" && "$wallpaper" != "missing value" && -f "$wallpaper" ]]; then
     printf '%s\n' "$wallpaper"
   fi
@@ -233,7 +241,15 @@ run_with_timeout() {
 set_wallpaper() {
   local wallpaper="$1"
   [[ -f "$wallpaper" ]] || return 1
-  run_with_timeout 8 osascript -e "tell application \"System Events\" to tell every desktop to set picture to \"$wallpaper\"" >/dev/null 2>&1 || return 1
+  run_with_timeout 8 osascript \
+    -e 'on run argv' \
+    -e 'tell application "System Events"' \
+    -e 'repeat with d in desktops' \
+    -e 'set picture of d to POSIX file (item 1 of argv)' \
+    -e 'end repeat' \
+    -e 'end tell' \
+    -e 'end run' \
+    "$wallpaper" >/dev/null 2>&1 || return 1
 }
 
 sync_wallpaper() {
@@ -320,6 +336,13 @@ sync_starship_palette() {
   mv "$tmp" "$STARSHIP_CONFIG"
 }
 
+sync_neovim_theme_state() {
+  local flavour="$1"
+  mkdir -p "$NVIM_STATE_DIR"
+  printf 'catppuccin-%s\n' "$(normalise_flavour "$flavour")" > "$NVIM_STATE_DIR/color_theme.txt"
+  printf '%s\n' "$(normalise_flavour "$flavour")" > "$NVIM_STATE_DIR/catppuccin_flavour.txt"
+}
+
 apply_mode() {
   local flavour
   flavour="$(normalise_flavour "$1")"
@@ -328,6 +351,7 @@ apply_mode() {
   mark_manual_theme_choice
   write_sketchybar_colors "$flavour"
   sync_kitty_theme "$flavour"
+  sync_neovim_theme_state "$flavour"
   sync_wallpaper "$flavour"
   sync_system_appearance "$flavour"
 
@@ -380,6 +404,7 @@ case "$ACTION" in
     mark_manual_theme_choice
     write_sketchybar_colors "$FLAVOUR"
     sync_kitty_theme "$FLAVOUR"
+    sync_neovim_theme_state "$FLAVOUR"
     sync_wallpaper "$FLAVOUR"
     sync_system_appearance "$FLAVOUR"
     mark_state "$(cat "$STATE_DIR/active" 2>/dev/null || printf '0')" "$FLAVOUR"

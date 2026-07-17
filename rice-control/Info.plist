@@ -12,5 +12,7 @@
   <string>APPL</string>
   <key>LSUIElement</key>
   <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>15.0</string>
 </dict>
 </plist>

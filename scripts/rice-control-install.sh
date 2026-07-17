@@ -16,7 +16,7 @@ SESSION_AGENT="$HOME/Library/LaunchAgents/$SESSION_LABEL.plist"
 UID_VALUE="$(id -u)"
 
 mkdir -p "$MACOS" "$HOME/Library/LaunchAgents"
-swiftc -parse-as-library "$SOURCE" -framework AppKit -o "$MACOS/RiceControl"
+swiftc -parse-as-library -target arm64-apple-macosx15.0 "$SOURCE" -framework AppKit -o "$MACOS/RiceControl"
 cp "$INFO_PLIST" "$CONTENTS/Info.plist"
 ln -sf "$PLIST" "$AGENT"
 ln -sf "$SESSION_PLIST" "$SESSION_AGENT"
