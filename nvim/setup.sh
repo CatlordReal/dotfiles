@@ -25,8 +25,8 @@ done
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 NVIM_CONFIG_DIR="${NVIM_CONFIG_DIR:-$SCRIPT_DIR}"
-NVIM_APPNAME="${NVIM_APPNAME:-$(basename "$NVIM_CONFIG_DIR")}" 
-CONFIG_HOME_PARENT="${XDG_CONFIG_HOME:-$(dirname "$NVIM_CONFIG_DIR")}" 
+NVIM_APPNAME="${NVIM_APPNAME:-$(basename "$NVIM_CONFIG_DIR")}"
+CONFIG_HOME_PARENT="${XDG_CONFIG_HOME:-$(dirname "$NVIM_CONFIG_DIR")}"
 XDG_DATA_HOME_VALUE="${XDG_DATA_HOME:-$HOME/.local/share}"
 XDG_STATE_HOME_VALUE="${XDG_STATE_HOME:-$HOME/.local/state}"
 
@@ -132,7 +132,7 @@ version_lt() {
 }
 
 current_nvim_version() {
-    "$1" --version 2>/dev/null | awk 'NR==1 { sub(/^v/, "", $2); print $2; exit }'
+    "$1" --version 2>/dev/null | awk 'NR==1 { sub(/^v/, "", $2); print $2; exit }' || true
 }
 
 current_node_version() {
@@ -356,7 +356,7 @@ linux_try_install() {
         die "failed to install required Linux packages: $*"
     fi
     warn "skipping optional Linux packages: $*"
-    return 1
+    return 0
 }
 
 install_linux_logical() {
@@ -565,6 +565,37 @@ install_linux_packages() {
     fi
 }
 
+install_linux_cli_tools() {
+    local -a package_attempts
+    case "$PACKAGE_MANAGER" in
+        apt-get)
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq")
+            ;;
+        dnf)
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq")
+            ;;
+        yum)
+            package_attempts=("bat bat-extras" "eza" "fzf" "zoxide" "git-delta delta" "starship" "yazi" "tmux" "btop" "jq")
+            ;;
+        pacman)
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq")
+            ;;
+        zypper)
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta delta" "starship" "yazi" "tmux" "btop" "jq")
+            ;;
+        *)
+            die "unsupported Linux package manager for CLI tools: $PACKAGE_MANAGER"
+            ;;
+    esac
+
+    local attempts
+    local -a attempts_array
+    for attempts in "${package_attempts[@]}"; do
+        read -r -a attempts_array <<<"$attempts"
+        linux_try_install optional "${attempts_array[@]}"
+    done
+}
+
 ensure_symlink_alias() {
     local alias_name="$1"
     local target_cmd="$2"
@@ -581,6 +612,7 @@ ensure_symlink_alias() {
 
 ensure_common_aliases() {
     ensure_symlink_alias fd fdfind
+    ensure_symlink_alias bat batcat
     ensure_symlink_alias node nodejs
 
     if ! have lua; then
@@ -598,6 +630,11 @@ install_node_locally() {
     local tmp_dir archive_url version archive_file extracted_dir target_dir tarball_name
     ensure_dir "$LOCAL_BIN"
     ensure_dir "$LOCAL_OPT"
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log "Would install Node.js LTS for $OS/$ARCH"
+        return
+    fi
 
     readarray -t node_release < <(python3 - "$OS" "$ARCH" <<'PY'
 import json
@@ -679,6 +716,12 @@ install_neovim_locally() {
     local tmp_dir archive_url version archive_file extracted_dir target_dir asset_name
     ensure_dir "$LOCAL_BIN"
     ensure_dir "$LOCAL_OPT"
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        NVIM_BIN="$LOCAL_BIN/nvim"
+        log "Would install latest Neovim for $OS/$ARCH"
+        return
+    fi
 
     readarray -t nvim_release < <(python3 - "$OS" "$ARCH" <<'PY'
 import json
@@ -771,6 +814,12 @@ ensure_dotnet_sdk() {
 
     ensure_dir "$DOTNET_ROOT_DIR"
     ensure_dir "$LOCAL_BIN"
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log "Would install .NET SDK $DOTNET_CHANNEL"
+        ensure_shell_exports
+        return
+    fi
 
     local tmp_dir installer
     tmp_dir="$(mktemp -d)"
@@ -886,6 +935,7 @@ main() {
         install_macos_packages
     else
         install_linux_packages
+        install_linux_cli_tools
     fi
 
     ensure_common_aliases
