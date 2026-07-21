@@ -10,6 +10,7 @@ WITH_CLI_TOOLS=0
 WITH_FONT=0
 WITH_P10K=0
 WITH_TMUX=0
+WITH_ZSHRC=0
 INSTALL_AUX_CONFIG=1
 BACKUP_AUX_CONFIG=0
 
@@ -26,6 +27,7 @@ while [[ $# -gt 0 ]]; do
             WITH_FONT=1
             WITH_P10K=1
             WITH_TMUX=1
+            WITH_ZSHRC=1
             ;;
         --with-font)
             WITH_FONT=1
@@ -35,6 +37,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --with-tmux)
             WITH_TMUX=1
+            ;;
+        --with-zshrc)
+            WITH_ZSHRC=1
             ;;
         --no-aux-config-install)
             INSTALL_AUX_CONFIG=0
@@ -66,6 +71,7 @@ MASON_BIN_DIR="$XDG_DATA_HOME_VALUE/$NVIM_APPNAME/mason/bin"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 P10K_SOURCE="$REPO_ROOT/.p10k.zsh"
 TMUX_SOURCE="$REPO_ROOT/.tmux.conf"
+ZSHRC_SOURCE="$REPO_ROOT/zshrc"
 P10K_DIR="${POWERLEVEL10K_DIR:-$XDG_DATA_HOME_VALUE/powerlevel10k}"
 FONT_DIR="${XDG_DATA_HOME_VALUE:-$HOME/.local/share}/fonts/JetBrainsMonoNerdFont"
 
@@ -680,6 +686,12 @@ install_tmux_config() {
     fi
 }
 
+install_zshrc_config() {
+    if [[ "$INSTALL_AUX_CONFIG" -eq 1 ]]; then
+        install_aux_config "$ZSHRC_SOURCE" "$HOME/.zshrc"
+    fi
+}
+
 install_auxiliary_tools() {
     if [[ "$WITH_FONT" -eq 1 ]]; then
         install_jetbrains_mono_nerd_font
@@ -689,6 +701,9 @@ install_auxiliary_tools() {
     fi
     if [[ "$WITH_TMUX" -eq 1 ]]; then
         install_tmux_config
+    fi
+    if [[ "$WITH_ZSHRC" -eq 1 ]]; then
+        install_zshrc_config
     fi
 }
 

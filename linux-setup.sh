@@ -33,6 +33,7 @@ Options:
   --with-font                    Also install JetBrainsMono Nerd Font
   --with-p10k                    Also install Powerlevel10k and ~/.p10k.zsh
   --with-tmux                    Also install tmux and ~/.tmux.conf
+  --with-zshrc                   Also install the repository zshrc as ~/.zshrc
   --no-aux-config-install        Install optional software, but do not copy shell/tmux config files
   --dry-run                     Show actions without changing the machine
   --help                        Show this help
@@ -71,6 +72,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --with-tmux)
             SETUP_ARGS+=(--with-tmux)
+            ;;
+        --with-zshrc)
+            SETUP_ARGS+=(--with-zshrc)
             ;;
         --no-aux-config-install)
             SETUP_ARGS+=(--no-aux-config-install)
