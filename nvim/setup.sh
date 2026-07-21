@@ -6,6 +6,12 @@ MIN_NODE_VERSION="18.0.0"
 DOTNET_CHANNEL="10.0"
 INSTALL_EXTRA_RUNTIMES="${INSTALL_EXTRA_RUNTIMES:-1}"
 DRY_RUN=0
+WITH_CLI_TOOLS=0
+WITH_FONT=0
+WITH_P10K=0
+WITH_TMUX=0
+INSTALL_AUX_CONFIG=1
+BACKUP_AUX_CONFIG=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -14,6 +20,27 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-extra-runtimes)
             INSTALL_EXTRA_RUNTIMES=0
+            ;;
+        --with-cli-tools)
+            WITH_CLI_TOOLS=1
+            WITH_FONT=1
+            WITH_P10K=1
+            WITH_TMUX=1
+            ;;
+        --with-font)
+            WITH_FONT=1
+            ;;
+        --with-p10k)
+            WITH_P10K=1
+            ;;
+        --with-tmux)
+            WITH_TMUX=1
+            ;;
+        --no-aux-config-install)
+            INSTALL_AUX_CONFIG=0
+            ;;
+        --backup-aux-config)
+            BACKUP_AUX_CONFIG=1
             ;;
         *)
             printf 'Unknown argument: %s\n' "$1" >&2
@@ -36,12 +63,16 @@ DOTNET_ROOT_DIR="$HOME/.dotnet"
 STATE_DIR="$XDG_STATE_HOME_VALUE/$NVIM_APPNAME"
 HEALTH_LOG="$STATE_DIR/setup-health.log"
 MASON_BIN_DIR="$XDG_DATA_HOME_VALUE/$NVIM_APPNAME/mason/bin"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+P10K_SOURCE="$REPO_ROOT/.p10k.zsh"
+TMUX_SOURCE="$REPO_ROOT/.tmux.conf"
+P10K_DIR="${POWERLEVEL10K_DIR:-$XDG_DATA_HOME_VALUE/powerlevel10k}"
+FONT_DIR="${XDG_DATA_HOME_VALUE:-$HOME/.local/share}/fonts/JetBrainsMonoNerdFont"
 
 OS=""
 ARCH=""
 PACKAGE_MANAGER=""
 NVIM_BIN=""
-BREW_BIN=""
 
 MASON_PACKAGES=(
     clangd
@@ -144,17 +175,8 @@ current_dotnet_version() {
 }
 
 set_platform() {
-    case "$(uname -s)" in
-        Darwin)
-            OS="macos"
-            ;;
-        Linux)
-            OS="linux"
-            ;;
-        *)
-            die "unsupported OS: $(uname -s)"
-            ;;
-    esac
+    [[ "$(uname -s)" == "Linux" ]] || die "Linux required"
+    OS="linux"
 
     case "$(uname -m)" in
         x86_64|amd64)
@@ -219,73 +241,6 @@ ensure_shell_exports() {
         printf 'export DOTNET_ROOT="$HOME/.dotnet"\n'
         printf '%s\n' "$end"
     } >> "$profile"
-}
-
-find_brew() {
-    if have brew; then
-        command -v brew
-        return 0
-    fi
-    if [[ -x /opt/homebrew/bin/brew ]]; then
-        printf '%s' /opt/homebrew/bin/brew
-        return 0
-    fi
-    if [[ -x /usr/local/bin/brew ]]; then
-        printf '%s' /usr/local/bin/brew
-        return 0
-    fi
-    return 1
-}
-
-ensure_homebrew() {
-    if BREW_BIN="$(find_brew 2>/dev/null)"; then
-        eval "$("$BREW_BIN" shellenv)"
-        return
-    fi
-
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-        log "Would install Homebrew"
-        BREW_BIN="brew"
-        return
-    fi
-
-    if ! have curl; then
-        die "curl is required to install Homebrew"
-    fi
-
-    log "Installing Homebrew"
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    BREW_BIN="$(find_brew)"
-    eval "$("$BREW_BIN" shellenv)"
-}
-
-brew_install_if_missing() {
-    local formula
-    for formula in "$@"; do
-        if "$BREW_BIN" list --versions "$formula" >/dev/null 2>&1; then
-            log "brew formula already installed: $formula"
-        else
-            run "$BREW_BIN" install "$formula"
-        fi
-    done
-}
-
-ensure_macos_build_tools() {
-    if xcode-select -p >/dev/null 2>&1; then
-        return
-    fi
-
-    warn "Xcode Command Line Tools are required for tree-sitter parsers and telescope-fzf-native.nvim"
-    if [[ "$DRY_RUN" -eq 0 ]]; then
-        xcode-select --install || true
-    fi
-    die "finish installing Xcode Command Line Tools, then rerun this script"
-}
-
-install_macos_packages() {
-    ensure_macos_build_tools
-    ensure_homebrew
-    brew_install_if_missing git ripgrep fd sqlite libxml2 node python lua pytest lazygit gh rust
 }
 
 detect_linux_package_manager() {
@@ -406,6 +361,12 @@ install_linux_logical() {
         apt-get:java)
             linux_try_install "$mode" "default-jdk" "openjdk-21-jdk"
             ;;
+        apt-get:tmux)
+            linux_try_install "$mode" "tmux"
+            ;;
+        apt-get:shell)
+            linux_try_install "$mode" "zsh fontconfig"
+            ;;
 
         dnf:core-utils|yum:core-utils)
             linux_try_install "$mode" "ca-certificates curl git unzip tar gzip xz"
@@ -448,6 +409,12 @@ install_linux_logical() {
             ;;
         dnf:java|yum:java)
             linux_try_install "$mode" "java-latest-openjdk-devel" "java-21-openjdk-devel"
+            ;;
+        dnf:tmux|yum:tmux)
+            linux_try_install "$mode" "tmux"
+            ;;
+        dnf:shell|yum:shell)
+            linux_try_install "$mode" "zsh fontconfig"
             ;;
 
         pacman:core-utils)
@@ -492,6 +459,12 @@ install_linux_logical() {
         pacman:java)
             linux_try_install "$mode" "jdk-openjdk"
             ;;
+        pacman:tmux)
+            linux_try_install "$mode" "tmux"
+            ;;
+        pacman:shell)
+            linux_try_install "$mode" "zsh fontconfig"
+            ;;
 
         zypper:core-utils)
             linux_try_install "$mode" "ca-certificates curl git unzip tar gzip xz"
@@ -535,6 +508,12 @@ install_linux_logical() {
         zypper:java)
             linux_try_install "$mode" "java-latest-openjdk-devel" "java-21-openjdk-devel"
             ;;
+        zypper:tmux)
+            linux_try_install "$mode" "tmux"
+            ;;
+        zypper:shell)
+            linux_try_install "$mode" "zsh fontconfig"
+            ;;
 
         *)
             die "unsupported Linux install target: $PACKAGE_MANAGER:$logical"
@@ -569,19 +548,19 @@ install_linux_cli_tools() {
     local -a package_attempts
     case "$PACKAGE_MANAGER" in
         apt-get)
-            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq")
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq" "wget" "htop" "ncdu" "tree")
             ;;
         dnf)
-            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq")
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq" "wget" "htop" "ncdu" "tree")
             ;;
         yum)
-            package_attempts=("bat bat-extras" "eza" "fzf" "zoxide" "git-delta delta" "starship" "yazi" "tmux" "btop" "jq")
+            package_attempts=("bat bat-extras" "eza" "fzf" "zoxide" "git-delta delta" "starship" "yazi" "tmux" "btop" "jq" "wget" "htop" "ncdu" "tree")
             ;;
         pacman)
-            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq")
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta" "starship" "yazi" "tmux" "btop" "jq" "wget" "htop" "ncdu" "tree")
             ;;
         zypper)
-            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta delta" "starship" "yazi" "tmux" "btop" "jq")
+            package_attempts=("bat" "eza" "fzf" "zoxide" "git-delta delta" "starship" "yazi" "tmux" "btop" "jq" "wget" "htop" "ncdu" "tree")
             ;;
         *)
             die "unsupported Linux package manager for CLI tools: $PACKAGE_MANAGER"
@@ -626,6 +605,93 @@ ensure_common_aliases() {
     fi
 }
 
+backup_aux_target() {
+    local target="$1" backup_root backup_path
+    backup_root="${XDG_STATE_HOME_VALUE:-$HOME/.local/state}/nvim-setup/backups"
+    backup_path="$backup_root/aux-$(date +%Y%m%d-%H%M%S)-$(basename "$target")-$$"
+    ensure_dir "$backup_root"
+    run mv -- "$target" "$backup_path"
+    log "backed up existing auxiliary config to $backup_path"
+}
+
+install_aux_config() {
+    local source="$1" target="$2"
+    [[ -f "$source" ]] || { warn "optional config source missing: $source"; return; }
+
+    if [[ -e "$target" || -L "$target" ]]; then
+        if [[ "$BACKUP_AUX_CONFIG" -eq 1 ]]; then
+            backup_aux_target "$target"
+        else
+            warn "preserving existing auxiliary config: $target"
+            return
+        fi
+    fi
+
+    ensure_dir "$(dirname "$target")"
+    run cp -a "$source" "$target"
+    log "installed auxiliary config: $target"
+}
+
+install_jetbrains_mono_nerd_font() {
+    local tmp_dir archive_file font_file
+    if have fc-list && fc-list | grep -Fqi 'JetBrainsMono Nerd Font'; then
+        log "JetBrainsMono Nerd Font already installed"
+        return
+    fi
+
+    ensure_dir "$FONT_DIR"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log "Would install JetBrainsMono Nerd Font to $FONT_DIR"
+        return
+    fi
+
+    tmp_dir="$(mktemp -d)"
+    archive_file="$tmp_dir/JetBrainsMono.zip"
+    run curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -o "$archive_file"
+    run unzip -oq "$archive_file" -d "$tmp_dir/fonts"
+    while IFS= read -r -d '' font_file; do
+        run cp -f "$font_file" "$FONT_DIR/"
+    done < <(find "$tmp_dir/fonts" -type f \( -iname '*.ttf' -o -iname '*.otf' \) -print0)
+    if have fc-cache; then
+        run fc-cache -f "$FONT_DIR"
+    fi
+    log "installed JetBrainsMono Nerd Font"
+}
+
+install_powerlevel10k() {
+    if [[ -d "$P10K_DIR/.git" ]]; then
+        log "Powerlevel10k already installed at $P10K_DIR"
+    elif [[ "$DRY_RUN" -eq 1 ]]; then
+        log "Would clone Powerlevel10k to $P10K_DIR"
+    else
+        ensure_dir "$(dirname "$P10K_DIR")"
+        run git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR"
+    fi
+
+    if [[ "$INSTALL_AUX_CONFIG" -eq 1 ]]; then
+        install_aux_config "$P10K_SOURCE" "$HOME/.p10k.zsh"
+    fi
+    log "Powerlevel10k ready; source ~/.p10k.zsh from your zsh startup file"
+}
+
+install_tmux_config() {
+    if [[ "$INSTALL_AUX_CONFIG" -eq 1 ]]; then
+        install_aux_config "$TMUX_SOURCE" "$HOME/.tmux.conf"
+    fi
+}
+
+install_auxiliary_tools() {
+    if [[ "$WITH_FONT" -eq 1 ]]; then
+        install_jetbrains_mono_nerd_font
+    fi
+    if [[ "$WITH_P10K" -eq 1 ]]; then
+        install_powerlevel10k
+    fi
+    if [[ "$WITH_TMUX" -eq 1 ]]; then
+        install_tmux_config
+    fi
+}
+
 install_node_locally() {
     local tmp_dir archive_url version archive_file extracted_dir target_dir tarball_name
     ensure_dir "$LOCAL_BIN"
@@ -642,8 +708,8 @@ import sys
 import urllib.request
 
 os_name, arch = sys.argv[1:3]
-platform = {"macos": "darwin", "linux": "linux"}[os_name]
-ext = ".tar.gz" if os_name == "macos" else ".tar.xz"
+platform = "linux"
+ext = ".tar.xz"
 release_index = json.load(urllib.request.urlopen("https://nodejs.org/dist/index.json"))
 for release in release_index:
     if not release.get("lts"):
@@ -730,11 +796,9 @@ import urllib.request
 
 os_name, arch = sys.argv[1:3]
 asset_names = {
-    ("linux", "x64"): "nvim-linux-x86_64.tar.gz",
-    ("linux", "arm64"): "nvim-linux-arm64.tar.gz",
-    ("macos", "x64"): "nvim-macos-x86_64.tar.gz",
-    ("macos", "arm64"): "nvim-macos-arm64.tar.gz",
-}
+        ("linux", "x64"): "nvim-linux-x86_64.tar.gz",
+        ("linux", "arm64"): "nvim-linux-arm64.tar.gz",
+    }
 want = asset_names[(os_name, arch)]
 release = json.load(urllib.request.urlopen("https://api.github.com/repos/neovim/neovim/releases/latest"))
 for asset in release["assets"]:
@@ -931,14 +995,19 @@ main() {
     ensure_dir "$LOCAL_OPT"
     prepend_runtime_path
 
-    if [[ "$OS" == "macos" ]]; then
-        install_macos_packages
-    else
-        install_linux_packages
+    install_linux_packages
+    if [[ "$WITH_CLI_TOOLS" -eq 1 ]]; then
         install_linux_cli_tools
+    fi
+    if [[ "$WITH_TMUX" -eq 1 && "$WITH_CLI_TOOLS" -eq 0 ]]; then
+        install_linux_logical tmux optional
+    fi
+    if [[ "$WITH_FONT" -eq 1 || "$WITH_P10K" -eq 1 ]]; then
+        install_linux_logical shell optional
     fi
 
     ensure_common_aliases
+    install_auxiliary_tools
     ensure_node_runtime
     ensure_npm_tools
     resolve_nvim

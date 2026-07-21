@@ -29,6 +29,11 @@ Options:
   --backup-existing-config     Move an existing target config to a timestamped backup
   --no-config-install            Use repository config only; do not copy it
   --no-extra-runtimes           Skip optional lazygit, gh, Rust, and Java packages
+  --with-cli-tools               Also install CLI tools, tmux, JetBrainsMono NF, and Powerlevel10k
+  --with-font                    Also install JetBrainsMono Nerd Font
+  --with-p10k                    Also install Powerlevel10k and ~/.p10k.zsh
+  --with-tmux                    Also install tmux and ~/.tmux.conf
+  --no-aux-config-install        Install optional software, but do not copy shell/tmux config files
   --dry-run                     Show actions without changing the machine
   --help                        Show this help
 EOF
@@ -43,6 +48,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --backup-existing-config)
             BACKUP_EXISTING=1
+            SETUP_ARGS+=(--backup-aux-config)
             ;;
         --no-config-install)
             INSTALL_CONFIG=0
@@ -53,6 +59,21 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-extra-runtimes)
             SETUP_ARGS+=(--no-extra-runtimes)
+            ;;
+        --with-cli-tools)
+            SETUP_ARGS+=(--with-cli-tools)
+            ;;
+        --with-font)
+            SETUP_ARGS+=(--with-font)
+            ;;
+        --with-p10k)
+            SETUP_ARGS+=(--with-p10k)
+            ;;
+        --with-tmux)
+            SETUP_ARGS+=(--with-tmux)
+            ;;
+        --no-aux-config-install)
+            SETUP_ARGS+=(--no-aux-config-install)
             ;;
         --help|-h)
             usage

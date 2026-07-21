@@ -212,9 +212,6 @@ local function format_mb(kb)
 end
 
 local function ps_command()
-    if vim.loop.os_uname().sysname == "Darwin" then
-        return { "ps", "-axo", "pid=,ppid=,pcpu=,pmem=,rss=,vsz=,state=,etime=,comm=" }
-    end
     return { "ps", "-eo", "pid=,ppid=,pcpu=,pmem=,rss=,vsz=,stat=,etime=,comm=" }
 end
 

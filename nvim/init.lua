@@ -1311,7 +1311,6 @@ require("lazy").setup({
                     group = "+",
                     mappings = true,
                     rules = {
-                        { pattern = "xcode", icon = " ", color = "blue" },
                         { pattern = "harpoon", icon = "󱡀 ", color = "cyan" },
                         { pattern = "database", icon = "󰆼 ", color = "blue" },
                         { pattern = "markdown", icon = " ", color = "blue" },
@@ -2932,8 +2931,6 @@ local file_tree_root_markers = {
     "Makefile",
     "*.sln",
     "*.csproj",
-    "*.xcodeproj",
-    "*.xcworkspace",
     "Package.swift",
 }
 
