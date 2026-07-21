@@ -1,4 +1,0 @@
-WRN 2026-03-02T20:41:46.193 ?.18512    server_start:199: Failed to start server: operation not permitted: /var/folders/kp/04p12cmd577b6qfnzs99bxlh0000gn/T/nvim.kianconti/b0Vd0A/nvim.18512.0
-WRN 2026-03-03T16:39:38.495 ?.64658    server_start:199: Failed to start server: operation not permitted: /var/folders/kp/04p12cmd577b6qfnzs99bxlh0000gn/T/nvim.kianconti/k2xXRN/nvim.64658.0
-WRN 2026-03-03T16:41:16.806 ?.64712    server_start:199: Failed to start server: operation not permitted: /var/folders/kp/04p12cmd577b6qfnzs99bxlh0000gn/T/nvim.kianconti/2F2WBq/nvim.64712.0
-WRN 2026-03-03T16:41:30.646 ?.64751    server_start:199: Failed to start server: operation not permitted: /var/folders/kp/04p12cmd577b6qfnzs99bxlh0000gn/T/nvim.kianconti/4aUfap/nvim.64751.0
