@@ -514,7 +514,7 @@ end
 
 local function sync_desktop_theme(theme_id, opts)
     opts = opts or {}
-    if opts.sync_desktop == false then
+    if opts.sync_desktop ~= true then
         return
     end
 
@@ -997,7 +997,7 @@ local function prompt_kitty_opacity()
 end
 
 local function enter_catppuccin_tiling_mode()
-    apply_color_theme("catppuccin-mocha")
+    apply_color_theme("catppuccin-mocha", { sync_desktop = true })
 end
 
 local function restore_desktop_mode()
