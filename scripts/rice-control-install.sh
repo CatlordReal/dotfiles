@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 SOURCE="$CONFIG_HOME/rice-control/RiceControl.swift"
+WALLPAPER_SOURCE="$CONFIG_HOME/rice-control/WallpaperControl.swift"
 INFO_PLIST="$CONFIG_HOME/rice-control/Info.plist"
 APP="$CONFIG_HOME/rice-control/RiceControl.app"
 CONTENTS="$APP/Contents"
@@ -17,6 +18,7 @@ UID_VALUE="$(id -u)"
 
 mkdir -p "$MACOS" "$HOME/Library/LaunchAgents"
 swiftc -parse-as-library -target arm64-apple-macosx15.0 "$SOURCE" -framework AppKit -o "$MACOS/RiceControl"
+swiftc -target arm64-apple-macosx15.0 "$WALLPAPER_SOURCE" -framework AppKit -o "$CONFIG_HOME/rice-control/WallpaperControl"
 cp "$INFO_PLIST" "$CONTENTS/Info.plist"
 ln -sf "$PLIST" "$AGENT"
 ln -sf "$SESSION_PLIST" "$SESSION_AGENT"

@@ -3535,6 +3535,27 @@ vim.lsp.config["sourcekit"] = {
     root_dir = lsp_util.root_pattern("Package.swift", ".git", "*.xcodeproj", "*.xcworkspace"),
 }
 
+-- Do not let slow LSP `textDocument/willSave` requests block `:write`.
+-- Diagnostics, completion, and normal LSP features remain enabled.
+local function remove_lsp_willsave(bufnr)
+    for _, autocmd in ipairs(vim.api.nvim_get_autocmds({ event = "BufWritePre", buffer = bufnr })) do
+        if autocmd.group_name and autocmd.group_name:match("^nvim%.lsp%.b_") then
+            pcall(vim.api.nvim_del_autocmd, autocmd.id)
+        end
+    end
+end
+
+vim.api.nvim_create_autocmd({ "BufEnter", "LspAttach" }, {
+    callback = function(args)
+        vim.defer_fn(function()
+            if vim.api.nvim_buf_is_valid(args.buf) then
+                remove_lsp_willsave(args.buf)
+            end
+        end, 100)
+    end,
+    desc = "Keep LSP willSave from blocking writes",
+})
+
 local enabled_lsps = { "lua_ls", "clangd", "pyright", "html", "lemminx" }
 if vim.fn.executable("sourcekit-lsp") == 1 then
     table.insert(enabled_lsps, "sourcekit")

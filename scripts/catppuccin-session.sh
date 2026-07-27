@@ -17,6 +17,9 @@ SKETCHYBAR_PLIST="$CONFIG_HOME/sketchybar/com.kianconti.sketchybar.plist"
 SKETCHYBAR_LABEL="com.kianconti.sketchybar"
 SKETCHYBAR_AGENT="$HOME/Library/LaunchAgents/$SKETCHYBAR_LABEL.plist"
 UID_VALUE="$(id -u)"
+AEROSPACE_CLIENT="${AEROSPACE_CLIENT:-/opt/homebrew/bin/aerospace}"
+AEROSPACE_APP="${AEROSPACE_APP:-/Applications/AeroSpace.app}"
+AEROSPACE_CONFIG="$CONFIG_HOME/aerospace/aerospace.toml"
 
 mkdir -p "$STATE_DIR" "$HOME/Library/LaunchAgents"
 
@@ -52,11 +55,22 @@ service_loaded() {
 }
 
 start_aerospace() {
-  command -v aerospace >/dev/null 2>&1 || return 0
-  if aerospace list-workspaces --focused >/dev/null 2>&1; then
+  [[ -x "$AEROSPACE_CLIENT" ]] || return 1
+  if "$AEROSPACE_CLIENT" list-workspaces --focused >/dev/null 2>&1; then
     return 0
   fi
-  open -gja AeroSpace >/dev/null 2>&1 || open -a AeroSpace >/dev/null 2>&1 || true
+  if [[ -d "$AEROSPACE_APP" ]]; then
+    open -gja "$AEROSPACE_APP" >/dev/null 2>&1 || return 1
+  else
+    open -gja AeroSpace >/dev/null 2>&1 || return 1
+  fi
+
+  local attempt
+  for attempt in {1..12}; do
+    "$AEROSPACE_CLIENT" list-workspaces --focused >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  return 1
 }
 
 stop_aerospace() {
@@ -64,8 +78,8 @@ stop_aerospace() {
 }
 
 start_sketchybar() {
-  command -v sketchybar >/dev/null 2>&1 || return 0
-  "$SKETCHYBAR_HEALTH_SCRIPT" ensure >/dev/null 2>&1 || true
+  command -v sketchybar >/dev/null 2>&1 || return 1
+  "$SKETCHYBAR_HEALTH_SCRIPT" ensure >/dev/null 2>&1
 }
 
 stop_sketchybar() {
@@ -80,10 +94,17 @@ start_session() {
   local was_enabled
   if is_enabled; then was_enabled=1; else was_enabled=0; fi
   flavour="$(normalise_flavour "$1")"
+  if ! start_aerospace; then
+    mark_enabled 0
+    return 1
+  fi
+  if ! start_sketchybar; then
+    stop_aerospace
+    mark_enabled 0
+    return 1
+  fi
   mark_enabled 1
   sync_neovim_theme_state "$flavour"
-  start_aerospace
-  start_sketchybar
   "$TILING_SCRIPT" apply "$flavour"
   if [[ "$was_enabled" == "1" && "$(cat "$JANKYBORDERS_STATE" 2>/dev/null || printf '1')" != "1" ]]; then
     "$JANKYBORDERS_SCRIPT" suspend >/dev/null 2>&1 || true
@@ -129,7 +150,9 @@ case "$ACTION" in
     apply_startup_state
     ;;
   aerospace-started)
-    is_enabled && start_session "$FLAVOUR"
+    if is_enabled; then
+      start_session "$FLAVOUR"
+    fi
     ;;
   status)
     if is_enabled; then

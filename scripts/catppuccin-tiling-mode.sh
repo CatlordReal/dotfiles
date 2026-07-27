@@ -9,6 +9,7 @@ STATE_DIR="$CONFIG_HOME/ricing"
 SKETCHYBAR_DIR="$CONFIG_HOME/sketchybar"
 SKETCHYBAR_ACTIVE_THEME="$SKETCHYBAR_DIR/helpers/active_theme.txt"
 WALLPAPER_DIR="$CONFIG_HOME/wallpapers/catppuccin"
+WALLPAPER_CONTROL="$CONFIG_HOME/rice-control/WallpaperControl"
 KITTY_CONFIG="$CONFIG_HOME/kitty/kitty.conf"
 KITTY_CURRENT_THEME="$CONFIG_HOME/kitty/current-theme.conf"
 STARSHIP_CONFIG="$CONFIG_HOME/starship.toml"
@@ -187,6 +188,14 @@ EOF
 
 current_wallpaper() {
   local wallpaper database_wallpaper
+  if [[ -x "$WALLPAPER_CONTROL" ]]; then
+    wallpaper="$("$WALLPAPER_CONTROL" get 2>/dev/null || true)"
+    if [[ -n "$wallpaper" && -f "$wallpaper" ]]; then
+      printf '%s\n' "$wallpaper"
+      return 0
+    fi
+  fi
+
   database_wallpaper="$(/usr/bin/sqlite3 "$HOME/Library/Application Support/Dock/desktoppicture.db" \
     'SELECT d.value FROM preferences p JOIN data d ON d.rowid = p.data_id WHERE p.key = 1 AND d.value LIKE "/%" ORDER BY p.rowid DESC LIMIT 1;' \
     2>/dev/null || true)"
@@ -241,15 +250,8 @@ run_with_timeout() {
 set_wallpaper() {
   local wallpaper="$1"
   [[ -f "$wallpaper" ]] || return 1
-  run_with_timeout 8 osascript \
-    -e 'on run argv' \
-    -e 'tell application "System Events"' \
-    -e 'repeat with d in desktops' \
-    -e 'set picture of d to POSIX file (item 1 of argv)' \
-    -e 'end repeat' \
-    -e 'end tell' \
-    -e 'end run' \
-    "$wallpaper" >/dev/null 2>&1 || return 1
+  [[ -x "$WALLPAPER_CONTROL" ]] || return 1
+  run_with_timeout 12 "$WALLPAPER_CONTROL" set "$wallpaper" >/dev/null 2>&1
 }
 
 sync_wallpaper() {
