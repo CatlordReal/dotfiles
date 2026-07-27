@@ -65,11 +65,7 @@ local color_theme_file = vim.fn.stdpath("state") .. "/color_theme.txt"
 local color_theme_favorites_file = vim.fn.stdpath("state") .. "/color_theme_favorites.txt"
 local kitty_config_file = vim.fn.expand("~/.config/kitty/kitty.conf")
 local kitty_current_theme_file = vim.fn.expand("~/.config/kitty/current-theme.conf")
-local ricing_control_script = vim.fn.expand("~/.config/scripts/catppuccin-tiling-mode.sh")
-local catppuccin_session_script = vim.fn.expand("~/.config/scripts/catppuccin-session.sh")
 local kitty_opacity_script = vim.fn.expand("~/.config/scripts/kitty-opacity.sh")
-local sketchyvim_toggle_script = vim.fn.expand("~/.config/scripts/sketchyvim-toggle.sh")
-local jankyborders_script = vim.fn.expand("~/.config/scripts/jankyborders.sh")
 
 local function normalize_catppuccin_flavour(flavour)
     if type(flavour) ~= "string" then
@@ -512,40 +508,6 @@ local function sync_kitty_theme(theme_id, opts)
     return true
 end
 
-local function sync_desktop_theme(theme_id, opts)
-    opts = opts or {}
-    if opts.sync_desktop ~= true then
-        return
-    end
-
-    if vim.fn.executable(catppuccin_session_script) ~= 1 and vim.fn.executable(ricing_control_script) ~= 1 then
-        return
-    end
-
-    local spec = get_color_theme_spec(theme_id)
-    if not spec then
-        return
-    end
-
-    local action = (spec.kind == "catppuccin") and "apply" or "restore"
-    local target = spec.catppuccin or spec.id
-    local command
-    if vim.fn.executable(catppuccin_session_script) == 1 then
-        command = { catppuccin_session_script, spec.kind == "catppuccin" and "on" or "off", target }
-    else
-        command = { ricing_control_script, action, target }
-    end
-
-    local output = vim.fn.system(command)
-    if vim.v.shell_error ~= 0 then
-        local message = vim.trim(output or "")
-        if message == "" then
-            message = "desktop theme sync failed"
-        end
-        vim.notify(message, vim.log.levels.WARN)
-    end
-end
-
 local function catppuccin_reactive_load(flavour)
     local value = normalize_catppuccin_flavour(flavour)
     return {
@@ -657,8 +619,6 @@ local function apply_catppuccin_theme(flavour, opts)
         end
     end
 
-    sync_desktop_theme(theme_id, opts)
-
     vim.cmd("redrawstatus")
     vim.cmd("redraw!")
 end
@@ -728,8 +688,6 @@ local function apply_extra_color_theme(theme_id, opts)
             vim.notify("Kitty theme sync failed: " .. tostring(kitty_err), vim.log.levels.WARN)
         end
     end
-
-    sync_desktop_theme(spec.id, opts)
 
     vim.cmd("redrawstatus")
     vim.cmd("redraw!")
@@ -996,75 +954,6 @@ local function prompt_kitty_opacity()
     end)
 end
 
-local function enter_catppuccin_tiling_mode()
-    apply_color_theme("catppuccin-mocha", { sync_desktop = true })
-end
-
-local function restore_desktop_mode()
-    local script = vim.fn.executable(catppuccin_session_script) == 1 and catppuccin_session_script or ricing_control_script
-    if vim.fn.executable(script) ~= 1 then
-        vim.notify("Ricing control script not found: " .. script, vim.log.levels.WARN)
-        return
-    end
-
-    local action = script == catppuccin_session_script and "off" or "restore"
-    local output = vim.fn.system({ script, action, vim.g.color_theme or COLOR_THEME_DEFAULT })
-    if vim.v.shell_error ~= 0 then
-        vim.notify("Desktop restore failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
-        return
-    end
-
-    vim.notify("Desktop mode restored", vim.log.levels.INFO)
-end
-
-local function toggle_catppuccin_session()
-    if vim.fn.executable(catppuccin_session_script) ~= 1 then
-        vim.notify("Catppuccin session script not found: " .. catppuccin_session_script, vim.log.levels.WARN)
-        return
-    end
-
-    local output = vim.fn.system({ catppuccin_session_script, "toggle" })
-    if vim.v.shell_error ~= 0 then
-        vim.notify("Catppuccin session toggle failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
-        return
-    end
-
-    local status = vim.fn.system({ catppuccin_session_script, "status" })
-    vim.notify("Catppuccin session " .. vim.trim(status or "toggled"), vim.log.levels.INFO)
-end
-
-local function toggle_sketchyvim()
-    if vim.fn.executable(sketchyvim_toggle_script) ~= 1 then
-        vim.notify("SketchyVim toggle script not found: " .. sketchyvim_toggle_script, vim.log.levels.WARN)
-        return
-    end
-
-    local output = vim.fn.system({ sketchyvim_toggle_script, "toggle" })
-    if vim.v.shell_error ~= 0 then
-        vim.notify("SketchyVim toggle failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
-        return
-    end
-
-    local status = vim.fn.system({ sketchyvim_toggle_script, "status" })
-    vim.notify("SketchyVim " .. vim.trim(status or "toggled"), vim.log.levels.INFO)
-end
-
-local function toggle_jankyborders()
-    if vim.fn.executable(jankyborders_script) ~= 1 then
-        vim.notify("JankyBorders script not found: " .. jankyborders_script, vim.log.levels.WARN)
-        return
-    end
-
-    local output = vim.fn.system({ jankyborders_script, "toggle" })
-    if vim.v.shell_error ~= 0 then
-        vim.notify("JankyBorders toggle failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
-        return
-    end
-
-    local status = vim.fn.system({ jankyborders_script, "status" })
-    vim.notify("JankyBorders " .. vim.trim(status or "toggled"), vim.log.levels.INFO)
-end
-
 vim.g.color_theme = normalize_color_theme_id(read_color_theme_id() or COLOR_THEME_DEFAULT)
 vim.g.catppuccin_flavour = normalize_catppuccin_flavour(
     (get_color_theme_spec(vim.g.color_theme) or {}).catppuccin or CATPPUCCIN_DEFAULT_THEME
@@ -1099,21 +988,6 @@ end, {
 })
 vim.api.nvim_create_user_command("KittyOpacity", prompt_kitty_opacity, {
     desc = "Set Kitty background opacity",
-})
-vim.api.nvim_create_user_command("CatppuccinTilingMode", enter_catppuccin_tiling_mode, {
-    desc = "Enter Catppuccin tiling mode",
-})
-vim.api.nvim_create_user_command("CatppuccinTilingRestore", restore_desktop_mode, {
-    desc = "Restore desktop mode",
-})
-vim.api.nvim_create_user_command("CatppuccinSessionToggle", toggle_catppuccin_session, {
-    desc = "Toggle full Catppuccin tiling session",
-})
-vim.api.nvim_create_user_command("SketchyVimToggle", toggle_sketchyvim, {
-    desc = "Toggle SketchyVim service",
-})
-vim.api.nvim_create_user_command("JankyBordersToggle", toggle_jankyborders, {
-    desc = "Toggle JankyBorders",
 })
 
 
@@ -1848,9 +1722,6 @@ require("lazy").setup({
             { "<leader>uC",      function() Snacks.picker.colorschemes() end,                            desc = "Colorschemes" },
             { "<leader>cc",      choose_catppuccin_flavour,                                              desc = "Choose Colour Theme" },
             { "<leader>co",      prompt_kitty_opacity,                                                   desc = "Kitty Opacity" },
-            { "<leader>cS",      toggle_catppuccin_session,                                             desc = "Toggle Catppuccin Session" },
-            { "<leader>ct",      enter_catppuccin_tiling_mode,                                           desc = "Catppuccin Tiling Mode" },
-            { "<leader>cT",      restore_desktop_mode,                                                   desc = "Restore Desktop Mode" },
             -- LSP
             { "gd",              function() Snacks.picker.lsp_definitions() end,                         desc = "Goto Definition" },
             { "gD",              function() Snacks.picker.lsp_declarations() end,                        desc = "Goto Declaration" },
@@ -3535,6 +3406,27 @@ vim.lsp.config["sourcekit"] = {
     root_dir = lsp_util.root_pattern("Package.swift", ".git", "*.xcodeproj", "*.xcworkspace"),
 }
 
+-- Do not let slow LSP `textDocument/willSave` requests block `:write`.
+-- Diagnostics, completion, and normal LSP features remain enabled.
+local function remove_lsp_willsave(bufnr)
+    for _, autocmd in ipairs(vim.api.nvim_get_autocmds({ event = "BufWritePre", buffer = bufnr })) do
+        if autocmd.group_name and autocmd.group_name:match("^nvim%.lsp%.b_") then
+            pcall(vim.api.nvim_del_autocmd, autocmd.id)
+        end
+    end
+end
+
+vim.api.nvim_create_autocmd({ "BufEnter", "LspAttach" }, {
+    callback = function(args)
+        vim.defer_fn(function()
+            if vim.api.nvim_buf_is_valid(args.buf) then
+                remove_lsp_willsave(args.buf)
+            end
+        end, 100)
+    end,
+    desc = "Keep LSP willSave from blocking writes",
+})
+
 local enabled_lsps = { "lua_ls", "clangd", "pyright", "html", "lemminx" }
 if vim.fn.executable("sourcekit-lsp") == 1 then
     table.insert(enabled_lsps, "sourcekit")
@@ -4225,11 +4117,6 @@ vim.keymap.set("n", "<leader>fh", function() require("telescope.builtin").help_t
 vim.keymap.set("n", "<leader>ft", "<cmd>TodoTelescope<CR>", { silent = true, desc = "TODOs" })
 vim.keymap.set("n", "<leader>cc", choose_catppuccin_flavour, { silent = true, desc = "Choose Colour Theme" })
 vim.keymap.set("n", "<leader>co", prompt_kitty_opacity, { silent = true, desc = "Kitty Opacity" })
-vim.keymap.set("n", "<leader>cb", toggle_jankyborders, { silent = true, desc = "Toggle JankyBorders" })
-vim.keymap.set("n", "<leader>cs", toggle_sketchyvim, { silent = true, desc = "Toggle SketchyVim" })
-vim.keymap.set("n", "<leader>cS", toggle_catppuccin_session, { silent = true, desc = "Toggle Catppuccin Session" })
-vim.keymap.set("n", "<leader>ct", enter_catppuccin_tiling_mode, { silent = true, desc = "Catppuccin Tiling Mode" })
-vim.keymap.set("n", "<leader>cT", restore_desktop_mode, { silent = true, desc = "Restore Desktop Mode" })
 
 -- Code actions
 
@@ -4708,11 +4595,6 @@ wkr.add({
     { "<leader>c",  group = "Colors",                                           icon = { icon = " ", color = "purple" } },
     { "<leader>cc", choose_catppuccin_flavour,                                desc = "Choose Colour Theme" },
     { "<leader>co", prompt_kitty_opacity,                                     desc = "Kitty Opacity" },
-    { "<leader>cb", toggle_jankyborders,                                      desc = "Toggle JankyBorders" },
-    { "<leader>cs", toggle_sketchyvim,                                        desc = "Toggle SketchyVim" },
-    { "<leader>cS", toggle_catppuccin_session,                                desc = "Toggle Catppuccin Session" },
-    { "<leader>ct", enter_catppuccin_tiling_mode,                             desc = "Catppuccin Tiling Mode" },
-    { "<leader>cT", restore_desktop_mode,                                     desc = "Restore Desktop Mode" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
     -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
     { "<leader>n",  group = "Notes/Notifications",                              icon = { icon = "󰎞 ", color = "blue" } },

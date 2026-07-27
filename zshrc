@@ -65,6 +65,3 @@ export PATH="$HOME/.local/bin:$PATH"
 export PATH="$PATH:$(go env GOPATH)/bin"
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
-
-# Catppuccin ricing tools
-[[ -r "$HOME/.config/zsh/ricing.zsh" ]] && source "$HOME/.config/zsh/ricing.zsh"
