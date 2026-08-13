@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.kian.caveman-proxy</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.caveman/bin/caveman-proxy</string>
+    <string>serve</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CAVEMAN_HOME</key>
+    <string>__HOME__/.caveman</string>
+    <key>CAVEMAN_MODE</key>
+    <string>compress</string>
+    <key>CAVEMAN_RECOVERY</key>
+    <string>mcp</string>
+    <key>CAVEMAN_LISTEN</key>
+    <string>127.0.0.1:8790</string>
+    <key>CAVEMAN_PROXY_OWNER</key>
+    <string>start</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.caveman/logs/proxy.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.caveman/logs/proxy.err.log</string>
+</dict>
+</plist>

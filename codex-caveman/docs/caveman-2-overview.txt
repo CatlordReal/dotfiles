@@ -1,0 +1,82 @@
+CAVEMAN 2 GLOBAL SETUP OVERVIEW
+================================
+
+Status
+------
+Caveman 2 is installed globally and working in native Codex Desktop with
+existing ChatGPT subscription authentication. Current Desktop conversation
+is traversing local Caveman proxy and produced verified compression of
+1412 input tokens to 644 tokens.
+
+Installed components
+--------------------
+- Caveman CLI 1.1.0
+- Caveman binary release bin-v1.0.0
+- Native Codex integration pack 2.2.0
+- Current 20-skill suite from JuliusBrussee/caveman
+- Local proxy on 127.0.0.1:8790
+- Caveman MCP recovery server
+- Codex lifecycle and shrink hooks
+- Persistent macOS LaunchAgent for proxy
+
+Global behaviour
+----------------
+Every new Codex session loads __HOME__/.codex/AGENTS.md. It enables
+Caveman Ultra by default, chooses orchestration when parallel work helps,
+keeps worker context compressed, preserves exact technical data, periodically
+requests eligible prose compression, and carries ntfy action instructions.
+
+Desktop integration
+-------------------
+Codex Desktop launches bundled codex app-server. Shared Codex config keeps
+built-in provider identity "openai" while openai_base_url routes traffic through
+http://127.0.0.1:8790/chatgpt. OAuth headers remain untouched. No API-key
+billing, credential extraction, TLS interception, app binary modification, or
+signed-application patching is used.
+
+Evidence
+--------
+- Persistent proxy is running and health endpoint reports ok=true.
+- Desktop requests appear as provider chatgpt-subscription at /responses.
+- Earlier representative test compressed 668 tokens to 151 tokens.
+- Current native Desktop conversation compressed 1412 tokens to 644 tokens.
+- Streaming, tool calls, skills, and normal ChatGPT authentication continued.
+- Caveman MCP initialize and tools/list handshakes succeeded.
+
+Legacy cleanup
+--------------
+Removed or replaced seven old static Caveman skills, obsolete custom
+cave-orchestrator, broken legacy hook assumptions, stale skill locks, accidental
+project-local install artifacts, and stale LaunchAgent for nonexistent
+/Applications/Codex.app. Unrelated Codex configuration stayed intact.
+
+Important files
+---------------
+__HOME__/.codex/AGENTS.md
+__HOME__/.codex/config.toml
+__HOME__/.codex/hooks.json
+__HOME__/.agents/skills
+__HOME__/.caveman
+__HOME__/Library/LaunchAgents/com.kian.caveman-proxy.plist
+
+Remaining limitation
+--------------------
+caveman-compress uses the persistent Codex adapter with ChatGPT subscription
+authentication by default. Claude remains optional. Proxy-side Caveman 2
+compression and offline prose compression are separate paths.
+
+Useful checks
+-------------
+caveman version
+caveman stats
+curl -fsS http://127.0.0.1:8790/health/ready
+launchctl print gui/$(id -u)/com.kian.caveman-proxy
+codex mcp list
+npx -y skills list -g --json
+
+Update
+------
+npm install -g @caveman-ai/cli@latest
+caveman setup --install
+npx -y skills add JuliusBrussee/caveman --skill '*' -a codex -g --yes --copy
+launchctl kickstart -k gui/$(id -u)/com.kian.caveman-proxy

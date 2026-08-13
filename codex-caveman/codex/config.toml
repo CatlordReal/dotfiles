@@ -1,0 +1,6 @@
+# Portable Caveman routing template. Merge into ~/.codex/config.toml.
+model_provider = "openai"
+openai_base_url = "http://127.0.0.1:8790/chatgpt"
+
+[mcp_servers.caveman]
+command = "__HOME__/.caveman/bin/caveman-mcp"

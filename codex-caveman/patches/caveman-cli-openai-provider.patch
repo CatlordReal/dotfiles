@@ -1,0 +1,43 @@
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -5245,12 +5245,8 @@
+ }
+ function codexCavemanProviderToml(gw, subscription = true) {
+     return [
+-        `model_provider = "caveman"`,
+-        `[model_providers.caveman]`,
+-        `name = "Caveman"`,
+-        `base_url = ${JSON.stringify(subscription ? appendUrlPath(gw, "/chatgpt") : appendUrlPath(gw, "/w/codex"))}`,
+-        `wire_api = "responses"`,
+-        `requires_openai_auth = true`,
++        `model_provider = "openai"`,
++        `openai_base_url = ${JSON.stringify(subscription ? appendUrlPath(gw, "/chatgpt") : appendUrlPath(gw, "/w/codex"))}`,
+     ].join("\n");
+ }
+ function stripCodexCavemanMcpToml(text) {
+@@ -5396,9 +5392,8 @@
+         sourceConfig = "";
+     }
+     const stripped = stripCodexCavemanMcpToml(stripCodexCavemanProviderToml(sourceConfig));
+-    const providerLines = codexCavemanProviderToml(gw, subscription).split("\n");
+-    const providerRoot = providerLines.shift();
+-    const providerTables = providerLines.join("\n");
++    const providerRoot = codexCavemanProviderToml(gw, subscription);
++    const providerTables = "";
+     const mcp = mcpBinary
+         ? `\n\n[mcp_servers.caveman]\ncommand = ${JSON.stringify(mcpBinary)}\n`
+         : "\n";
+@@ -6020,12 +6015,9 @@
+         if (start !== -1)
+             stripped = `${stripped.slice(0, start)}${stripped.slice(finish + end.length)}`.trim();
+     }
+-    const rootBlock = `${CODEX_NATIVE_ROOT_BEGIN}\nmodel_provider = "caveman"\n${CODEX_NATIVE_ROOT_END}`;
+-    const providerLines = codexCavemanProviderToml(gw, subscription).split("\n").slice(1).join("\n");
++    const rootBlock = `${CODEX_NATIVE_ROOT_BEGIN}\n${codexCavemanProviderToml(gw, subscription)}\n${CODEX_NATIVE_ROOT_END}`;
+     const tablesBlock = [
+         CODEX_NATIVE_TABLES_BEGIN,
+-        providerLines,
+-        "",
+         "[mcp_servers.caveman]",
+         `command = ${JSON.stringify(mcpBinary)}`,
+         CODEX_NATIVE_TABLES_END,
