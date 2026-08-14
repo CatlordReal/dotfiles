@@ -1,6 +1,5 @@
 # Espanso defaults. Match rules live in ../match/base.yml.
 # Apostrophes are intentionally absent so contractions remain whole words.
-preserve_clipboard: true
 word_separators:
   - " "
   - ","
