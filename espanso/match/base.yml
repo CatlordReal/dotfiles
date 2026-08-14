@@ -469,6 +469,10 @@ matches:
 - trigger: mcalt
   replace: meow I like cats and my cats are Kitcat (kitten-cat) and Pashmack (candyfloss)
   word: true
+- trigger: u
+  replace: you
+  word: true
+  force_mode: keys
 - trigger: brb
   replace: be right back
   word: true
