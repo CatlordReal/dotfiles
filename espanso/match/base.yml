@@ -1,0 +1,480 @@
+---
+matches:
+- trigger: celeste
+  replace: Celeste
+  word: true
+- trigger: badeline
+  replace: Badeline
+  word: true
+- trigger: addly
+  replace: additionally
+  word: true
+- trigger: addl
+  replace: additional
+  word: true
+- trigger: t
+  replace: the
+  word: true
+- trigger: wld
+  replace: would
+  word: true
+- trigger: cld
+  replace: could
+  word: true
+- trigger: otamatone
+  replace: Otamatone
+  word: true
+- trigger: al
+  replace: Ableton Live
+  word: true
+- trigger: htd
+  replace: H2D
+  word: true
+- trigger: crazyfull
+  replace: Crazy? I was crazy once. They locked me in a room, a rubber room, a rubber
+    room with rats, and rats make me crazy.
+  word: true
+- trigger: alr
+  replace: alright
+  word: true
+- trigger: ppl
+  replace: people
+  word: true
+- trigger: ACCf
+  replace: Assetto Corsa Competizione
+  word: true
+- trigger: ac
+  replace: Assetto Corsa
+  word: true
+- trigger: nlr
+  replace: Next Level Racing
+  word: true
+- trigger: avata
+  replace: Avata
+  word: true
+- trigger: wether
+  replace: whether
+  word: true
+- trigger: lyk
+  replace: let you know
+  word: true
+- trigger: sdeg
+  replace: "°"
+  word: true
+- trigger: wemre
+  replace: we’re
+  word: true
+- trigger: act
+  replace: actually
+  word: true
+- trigger: m’
+  replace: "'"
+  word: true
+- trigger: te
+  replace: Teenage Engineering
+  word: true
+- trigger: bl
+  replace: Bambu Lab
+  word: true
+- trigger: dd45
+  replace: Dremel DigiLab 3D45
+  word: true
+- trigger: FCPI
+  replace: Final Cut Pro for iPad
+  word: true
+- trigger: fcp
+  replace: Final Cut Pro
+  word: true
+- trigger: lceleste
+  replace: L + No dashes + No wall climb + Fell in spikes + Missed the strawberry
+    + Got hit by a seeker + Stamina ran out + Bad Theo throw + Didn’t hyperdash +
+    Died 100 times + “Just breathe”
+  word: true
+- trigger: 2mins
+  replace: two minutes
+  word: true
+- trigger: omw
+  replace: on my way
+  word: true
+- trigger: idm
+  replace: I don’t mind
+  word: true
+- trigger: zwsp
+  replace: "​"
+  word: true
+- trigger: lmaiden
+  replace: L + maidenless + no runes + touch grace + ungrafted + invaded + parried
+    + scarlet Rot + one shot + You leveled dex
+  word: true
+- trigger: u2
+  replace: you too
+  word: true
+- trigger: villanous
+  replace: villainous
+  word: true
+- trigger: apin
+  replace: Apple Intelligence
+  word: true
+- trigger: mc
+  replace: Minecraft
+  word: true
+- trigger: lmk
+  replace: let me know
+  word: true
+- trigger: vecna
+  replace: Vecna
+  word: true
+- trigger: gds
+  replace: Game Dev Story
+  word: true
+- trigger: demodog
+  replace: Demodog
+  word: true
+- trigger: demogorgon
+  replace: Demogorgon
+  word: true
+- trigger: dar
+  replace: Dolby Atmos Renderer
+  word: true
+- trigger: lp
+  replace: Logic Pro
+  word: true
+- trigger: heartshot
+  replace: HEARTSHOT
+  word: true
+- trigger: c4d
+  replace: Cinema 4D
+  word: true
+- trigger: hbu
+  replace: how about you
+  word: true
+- trigger: yea
+  replace: 'yes'
+  word: true
+- trigger: jsyn
+  replace: just so you know
+  word: true
+- trigger: tk
+  replace: to
+  word: true
+- trigger: caliper
+  replace: calliper
+  word: true
+- trigger: "?!"
+  replace: "‽"
+  word: true
+- trigger: ops
+  replace: opinions
+  word: true
+- trigger: idts
+  replace: I don’t think so
+  word: true
+- trigger: m|
+  replace: "│"
+  word: true
+- trigger: mt
+  replace: "├"
+  word: true
+- trigger: mright
+  replace: "└"
+  word: true
+- trigger: m-
+  replace: "─"
+  word: true
+- trigger: ag
+  replace: Anthony Gallo
+  word: true
+- trigger: da
+  replace: Dolby Atmos
+  word: true
+- trigger: p6
+  replace: Prophet 6
+  word: true
+- trigger: fc6
+  replace: Far Cry 6
+  word: true
+- trigger: pfp
+  replace: profile picture
+  word: true
+- trigger: eggo
+  replace: Eggo
+  word: true
+- trigger: eggos
+  replace: Eggos
+  word: true
+- trigger: dts
+  replace: don’t think so
+  word: true
+- trigger: dyt
+  replace: do you think
+  word: true
+- trigger: smtng
+  replace: something
+  word: true
+- trigger: cata
+  replace: catapult
+  word: true
+- trigger: elevens
+  replace: Eleven’s
+  word: true
+- trigger: eleven
+  replace: Eleven
+  word: true
+- trigger: el
+  replace: El
+  word: true
+- trigger: st
+  replace: Stranger Things
+  word: true
+- trigger: nats
+  replace: Nationals
+  word: true
+- trigger: stpt
+  replace: 'Stranger Things: Puzzle Tales'
+  word: true
+- trigger: maw
+  replace: might as well
+  word: true
+- trigger: urs
+  replace: yours
+  word: true
+- trigger: idrc
+  replace: I don’t really care
+  word: true
+- trigger: uve
+  replace: you’ve
+  word: true
+- trigger: cycology
+  replace: 'psychology '
+  word: true
+- trigger: o
+  replace: oh
+  word: true
+- trigger: idt
+  replace: I don’t think
+  word: true
+- trigger: yk
+  replace: you know
+  word: true
+- trigger: urself
+  replace: yourself
+  word: true
+- trigger: idrk
+  replace: I don’t really know
+  word: true
+- trigger: gc
+  replace: group chat
+  word: true
+- trigger: ure
+  replace: you’re
+  word: true
+- trigger: sv
+  replace: Stardew Valley
+  word: true
+- trigger: tysm
+  replace: thank you so much
+  word: true
+- trigger: wouldnt
+  replace: wouldn’t
+  word: true
+- trigger: itll
+  replace: it’ll
+  word: true
+- trigger: arent
+  replace: aren’t
+  word: true
+- trigger: werent
+  replace: weren’t
+  word: true
+- trigger: didnt
+  replace: didn’t
+  word: true
+- trigger: rnt
+  replace: aren’t
+  word: true
+- trigger: bout
+  replace: about
+  word: true
+- trigger: wanna
+  replace: want to
+  word: true
+- trigger: lemme
+  replace: let me
+  word: true
+- trigger: gimme
+  replace: give me
+  word: true
+- trigger: thats
+  replace: that’s
+  word: true
+- trigger: srlsy
+  replace: seriously
+  word: true
+- trigger: v
+  replace: very
+  word: true
+- trigger: ull
+  replace: you will
+  word: true
+- trigger: imma
+  replace: I’m going to
+  word: true
+- trigger: sm
+  replace: so much
+  word: true
+- trigger: kinda
+  replace: kind of
+  word: true
+- trigger: pls
+  replace: please
+  word: true
+- trigger: ud
+  replace: you would
+  word: true
+- trigger: rlly
+  replace: really
+  word: true
+- trigger: nvm
+  replace: never mind
+  word: true
+- trigger: cad
+  replace: CAD
+  word: true
+- trigger: yw
+  replace: you’re welcome
+  word: true
+- trigger: tbh
+  replace: to be honest
+  word: true
+- trigger: rly
+  replace: really
+  word: true
+- trigger: mins
+  replace: minutes
+  word: true
+- trigger: ik
+  replace: I know
+  word: true
+- trigger: dont
+  replace: don’t
+  word: true
+- trigger: till
+  replace: untill
+  word: true
+- trigger: Ill
+  replace: I’ll
+  word: true
+- trigger: i
+  replace: I
+  word: true
+- trigger: lotr
+  replace: Lord Of The Rings
+  word: true
+- trigger: dw
+  replace: don’t worry
+  word: true
+- trigger: soz
+  replace: sorry
+  word: true
+- trigger: thx
+  replace: thanks
+  word: true
+- trigger: ty
+  replace: thank you
+  word: true
+- trigger: gonna
+  replace: going to
+  word: true
+- trigger: isnt
+  replace: isn’t
+  word: true
+- trigger: probs
+  replace: probably
+  word: true
+- trigger: wont
+  replace: won’t
+  word: true
+- trigger: sec
+  replace: second
+  word: true
+- trigger: longcat
+  replace: catcatcatcatcatcatcatcatmmmmmeeeeeeeeoooooooooooowwwwwwwcatcatcat
+  word: true
+- trigger: np
+  replace: no problem
+  word: true
+- trigger: tho
+  replace: though
+  word: true
+- trigger: rn
+  replace: right now
+  word: true
+- trigger: im
+  replace: I’m
+  word: true
+- trigger: idk
+  replace: I don’t know
+  word: true
+- trigger: irl
+  replace: in real life
+  word: true
+- trigger: gr8
+  replace: great
+  word: true
+- trigger: def
+  replace: definitlely
+  word: true
+- trigger: "[:dyingoflaughter:]"
+  replace: XD
+  word: true
+- trigger: ur
+  replace: your
+  word: true
+- trigger: k
+  replace: ok
+  word: true
+- trigger: cu
+  replace: see you
+  word: true
+- trigger: gtg
+  replace: got to go
+  word: true
+- trigger: its
+  replace: it’s
+  word: true
+- trigger: cant
+  replace: can’t
+  word: true
+- trigger: doesnt
+  replace: doesn’t
+  word: true
+- trigger: wdym
+  replace: what do you mean
+  word: true
+- trigger: ikr
+  replace: I know right
+  word: true
+- trigger: coz
+  replace: because
+  word: true
+- trigger: gl
+  replace: good luck
+  word: true
+- trigger: fyi
+  replace: for your information
+  word: true
+- trigger: r
+  replace: are
+  word: true
+- trigger: mcalt
+  replace: meow I like cats and my cats are Kitcat (kitten-cat) and Pashmack (candyfloss)
+  word: true
+- trigger: u
+  replace: you
+  word: true
+- trigger: brb
+  replace: be right back
+  word: true
+- trigger: btw
+  replace: by the way
+  word: true
