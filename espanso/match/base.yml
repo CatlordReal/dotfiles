@@ -472,6 +472,7 @@ matches:
 - trigger: u
   replace: you
   word: true
+  force_mode: keys
 - trigger: brb
   replace: be right back
   word: true

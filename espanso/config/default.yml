@@ -1,2 +1,26 @@
 # Espanso defaults. Match rules live in ../match/base.yml.
-{}
+# Apostrophes are intentionally absent so contractions remain whole words.
+key_delay: 0
+word_separators:
+  - " "
+  - ","
+  - "."
+  - "?"
+  - "!"
+  - ":"
+  - ";"
+  - "("
+  - ")"
+  - "["
+  - "]"
+  - "{"
+  - "}"
+  - "-"
+  - "–"
+  - "—"
+  - "/"
+  - '"'
+  - "\r"
+  - "\n"
+  - "\t"
+  - "\u00A0"
