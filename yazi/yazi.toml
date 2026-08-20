@@ -20,9 +20,11 @@ edit = [
   { run = 'nvim "$@"', block = true, for = "unix" },
 ]
 open = [
+  { run = 'xdg-open "$@"', desc = "Open", for = "linux" },
   { run = 'open "$@"', desc = "Open", for = "macos" },
 ]
 reveal = [
+  { run = 'xdg-open "$(dirname "$1")"', desc = "Reveal", for = "linux" },
   { run = 'open -R "$1"', desc = "Reveal", for = "macos" },
 ]
 

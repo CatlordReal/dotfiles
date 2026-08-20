@@ -65,7 +65,7 @@ local color_theme_file = vim.fn.stdpath("state") .. "/color_theme.txt"
 local color_theme_favorites_file = vim.fn.stdpath("state") .. "/color_theme_favorites.txt"
 local kitty_config_file = vim.fn.expand("~/.config/kitty/kitty.conf")
 local kitty_current_theme_file = vim.fn.expand("~/.config/kitty/current-theme.conf")
-local kitty_opacity_script = vim.fn.expand("~/.config/scripts/kitty-opacity.sh")
+local imported_color_themes = require("imported_colorschemes").load()
 
 local function normalize_catppuccin_flavour(flavour)
     if type(flavour) ~= "string" then
@@ -217,6 +217,33 @@ local color_theme_specs = {
     },
 }
 
+local builtin_colorscheme_names = {}
+for _, spec in ipairs(color_theme_specs) do
+    if type(spec.nvim) == "string" and spec.nvim ~= "" then
+        builtin_colorscheme_names[spec.nvim:lower()] = true
+    end
+    if spec.kind == "catppuccin" and type(spec.catppuccin) == "string" then
+        builtin_colorscheme_names["catppuccin"] = true
+        builtin_colorscheme_names["catppuccin-" .. spec.catppuccin] = true
+        builtin_colorscheme_names[spec.catppuccin] = true
+    end
+end
+
+local imported_color_theme_ids = {}
+for _, imported in ipairs(imported_color_themes) do
+    if not builtin_colorscheme_names[imported.name:lower()] then
+        local spec = {
+            id = imported.id,
+            label = imported.name .. " (imported)",
+            nvim = imported.name,
+            kind = "imported",
+            imported = true,
+        }
+        table.insert(color_theme_specs, spec)
+        table.insert(imported_color_theme_ids, spec.id)
+    end
+end
+
 local main_color_theme_ids = {
     "catppuccin-latte",
     "catppuccin-frappe",
@@ -251,6 +278,10 @@ local COLOR_THEME_DEFAULT = "catppuccin-" .. CATPPUCCIN_DEFAULT_THEME
 local function normalize_color_theme_id(theme_id)
     if type(theme_id) ~= "string" then
         return COLOR_THEME_DEFAULT
+    end
+
+    if color_theme_by_id[theme_id] then
+        return theme_id
     end
 
     local value = theme_id:lower():gsub("_", "-"):gsub("%s+", "-")
@@ -451,11 +482,99 @@ local function update_kitty_theme_comment(kitty_theme_name)
     return true
 end
 
+local function highlight_colour(group, field, fallback)
+    local ok, highlight = pcall(vim.api.nvim_get_hl, 0, { name = group, link = false })
+    local colour = ok and highlight[field] or nil
+    if type(colour) == "number" then
+        return string.format("#%06x", colour)
+    end
+    return fallback
+end
+
+local function generated_kitty_theme_lines(spec)
+    local foreground = highlight_colour("Normal", "fg", "#cdd6f4")
+    local background = highlight_colour("Normal", "bg", "#1e1e2e")
+    local selection_background = highlight_colour("Visual", "bg", "#45475a")
+    local selection_foreground = highlight_colour("Visual", "fg", foreground)
+    local palette = {
+        highlight_colour("Comment", "fg", "#585b70"),
+        highlight_colour("DiagnosticError", "fg", "#f38ba8"),
+        highlight_colour("String", "fg", "#a6e3a1"),
+        highlight_colour("Keyword", "fg", "#f9e2af"),
+        highlight_colour("Function", "fg", "#89b4fa"),
+        highlight_colour("Constant", "fg", "#f5c2e7"),
+        highlight_colour("Type", "fg", "#94e2d5"),
+        highlight_colour("Normal", "fg", "#bac2de"),
+    }
+    local lines = {
+        "## name: Neovim " .. spec.nvim,
+        "## generated from Neovim colourscheme; do not edit by hand",
+        "foreground " .. foreground,
+        "background " .. background,
+        "cursor " .. highlight_colour("Cursor", "bg", foreground),
+        "selection_foreground " .. selection_foreground,
+        "selection_background " .. selection_background,
+    }
+    for index, colour in ipairs(palette) do
+        table.insert(lines, "color" .. (index - 1) .. " " .. colour)
+        table.insert(lines, "color" .. (index + 7) .. " " .. colour)
+    end
+    return lines
+end
+
+local function reload_kitty_colours()
+    local reload_output = vim.fn.system({
+        "kitty",
+        "@",
+        "set-colors",
+        "--all",
+        "--configured",
+        kitty_current_theme_file,
+    })
+    if vim.v.shell_error ~= 0 then
+        local message = vim.trim(reload_output or "")
+        if message == "" then
+            message = "Kitty colour reload failed"
+        end
+        return false, message
+    end
+    return true
+end
+
+local function write_kitty_theme(theme_name, lines)
+    local kitty_available = vim.fn.executable("kitty") == 1
+    vim.fn.mkdir(vim.fn.fnamemodify(kitty_current_theme_file, ":h"), "p")
+    if vim.fn.writefile(lines, kitty_current_theme_file) ~= 0 then
+        return false, "Failed to write Kitty current theme"
+    end
+
+    local ok_comment, comment_err = update_kitty_theme_comment(theme_name)
+    if not ok_comment then
+        if not kitty_available then
+            return false, comment_err .. "; kitty is unavailable and cannot be reloaded"
+        end
+        return false, comment_err
+    end
+
+    if not kitty_available then
+        return false, "kitty is unavailable; generated theme was saved but Kitty was not reloaded"
+    end
+
+    return reload_kitty_colours()
+end
+
 local function sync_kitty_theme(theme_id, opts)
     opts = opts or {}
     local spec = get_color_theme_spec(theme_id)
-    if not spec or not spec.kitty then
+    if not spec then
         return true
+    end
+
+    if not spec.kitty then
+        if opts.reload == false then
+            return true
+        end
+        return write_kitty_theme("Neovim " .. spec.nvim, generated_kitty_theme_lines(spec))
     end
 
     if vim.fn.executable("kitty") ~= 1 then
@@ -487,21 +606,9 @@ local function sync_kitty_theme(theme_id, opts)
     end
 
     if opts.reload ~= false then
-        local reload_output = vim.fn.system({
-            "kitty",
-            "+kitten",
-            "themes",
-            "--reload-in=all",
-            "--config-file-name",
-            kitty_config_file,
-            spec.kitty,
-        })
-        if vim.v.shell_error ~= 0 then
-            local message = vim.trim(reload_output or "")
-            if message == "" then
-                message = "Failed to reload Kitty colours"
-            end
-            return false, message
+        local ok_reload, reload_err = reload_kitty_colours()
+        if not ok_reload then
+            return false, reload_err
         end
     end
 
@@ -893,6 +1000,21 @@ local function open_more_color_theme_picker(start_theme_id)
     })
 end
 
+local function open_imported_color_theme_picker()
+    local entries = {}
+    for _, spec in ipairs(get_color_theme_specs(imported_color_theme_ids)) do
+        table.insert(entries, {
+            theme = spec,
+            label = spec.label,
+        })
+    end
+    open_color_theme_picker({
+        title = "Imported Themes",
+        help = "j/k move, <CR> choose, q close",
+        entries = entries,
+    })
+end
+
 local function choose_catppuccin_flavour()
     local entries = {}
     for index, spec in ipairs(get_color_theme_specs(main_color_theme_ids)) do
@@ -914,6 +1036,14 @@ local function choose_catppuccin_flavour()
         end
     end
 
+    if #imported_color_theme_ids > 0 then
+        table.insert(entries, { separator = true })
+        table.insert(entries, {
+            label = "Imported",
+            action = open_imported_color_theme_picker,
+        })
+    end
+
     table.insert(entries, { separator = true })
     table.insert(entries, {
         label = "More",
@@ -928,30 +1058,6 @@ local function choose_catppuccin_flavour()
         help = "j/k move, <CR> choose, 0 more, q close",
         entries = entries,
     })
-end
-
-local function prompt_kitty_opacity()
-    if vim.fn.executable(kitty_opacity_script) ~= 1 then
-        vim.notify("Kitty opacity script not found: " .. kitty_opacity_script, vim.log.levels.WARN)
-        return
-    end
-
-    vim.ui.input({
-        prompt = "Kitty opacity (%)",
-        default = "70",
-    }, function(input)
-        if input == nil or vim.trim(input) == "" then
-            return
-        end
-
-        local output = vim.fn.system({ kitty_opacity_script, input })
-        if vim.v.shell_error ~= 0 then
-            vim.notify("Kitty opacity update failed: " .. vim.trim(output or ""), vim.log.levels.WARN)
-            return
-        end
-
-        vim.notify("Kitty opacity set to " .. vim.trim(output), vim.log.levels.INFO)
-    end)
 end
 
 vim.g.color_theme = normalize_color_theme_id(read_color_theme_id() or COLOR_THEME_DEFAULT)
@@ -976,21 +1082,6 @@ end, {
     end,
     desc = "Set colour theme by id",
 })
-vim.api.nvim_create_user_command("KittyThemeSync", function()
-    local ok, err = sync_kitty_theme(vim.g.color_theme or catppuccin_flavour_to_theme_id(vim.g.catppuccin_flavour))
-    if not ok then
-        vim.notify("Kitty theme sync failed: " .. tostring(err), vim.log.levels.WARN)
-        return
-    end
-    vim.notify("Kitty theme synced", vim.log.levels.INFO)
-end, {
-    desc = "Sync Kitty with the current colour theme",
-})
-vim.api.nvim_create_user_command("KittyOpacity", prompt_kitty_opacity, {
-    desc = "Set Kitty background opacity",
-})
-
-
 vim.diagnostic.config({
     virtual_text = {
         severity = { min = vim.diagnostic.severity.ERROR },
@@ -1719,9 +1810,8 @@ require("lazy").setup({
             { "<leader>sq",      function() Snacks.picker.qflist() end,                                  desc = "Quickfix List" },
             { "<leader>sR",      function() Snacks.picker.resume() end,                                  desc = "Resume" },
             { "<leader>su",      function() Snacks.picker.undo() end,                                    desc = "Undo History" },
-            { "<leader>uC",      function() Snacks.picker.colorschemes() end,                            desc = "Colorschemes" },
+            { "<leader>uC",      choose_catppuccin_flavour,                                              desc = "Choose Colour Theme" },
             { "<leader>cc",      choose_catppuccin_flavour,                                              desc = "Choose Colour Theme" },
-            { "<leader>co",      prompt_kitty_opacity,                                                   desc = "Kitty Opacity" },
             -- LSP
             { "gd",              function() Snacks.picker.lsp_definitions() end,                         desc = "Goto Definition" },
             { "gD",              function() Snacks.picker.lsp_declarations() end,                        desc = "Goto Declaration" },
@@ -1805,8 +1895,6 @@ require("lazy").setup({
                     Snacks.toggle.option("conceallevel",
                         { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2 }):map("<leader>uc")
                     Snacks.toggle.treesitter():map("<leader>uT")
-                    Snacks.toggle.option("background", { off = "light", on = "dark", name = "Dark Background" }):map(
-                        "<leader>ub")
                     Snacks.toggle.inlay_hints():map("<leader>uh")
                     Snacks.toggle.indent():map("<leader>ug")
                     Snacks.toggle.dim():map("<leader>uD")
@@ -2845,7 +2933,6 @@ vim.schedule(function()
     apply_color_theme(vim.g.color_theme, {
         persist = false,
         sync_kitty = false,
-        sync_desktop = false,
         reload_kitty = false,
     })
 end)
@@ -4116,7 +4203,7 @@ vim.keymap.set("n", "<leader>fh", function() require("telescope.builtin").help_t
     { silent = true, desc = "Help Tags" })
 vim.keymap.set("n", "<leader>ft", "<cmd>TodoTelescope<CR>", { silent = true, desc = "TODOs" })
 vim.keymap.set("n", "<leader>cc", choose_catppuccin_flavour, { silent = true, desc = "Choose Colour Theme" })
-vim.keymap.set("n", "<leader>co", prompt_kitty_opacity, { silent = true, desc = "Kitty Opacity" })
+vim.keymap.set("n", "<leader>uC", choose_catppuccin_flavour, { silent = true, desc = "Choose Colour Theme" })
 
 -- Code actions
 
@@ -4594,7 +4681,6 @@ wkr.add({
     -- Colors
     { "<leader>c",  group = "Colors",                                           icon = { icon = " ", color = "purple" } },
     { "<leader>cc", choose_catppuccin_flavour,                                desc = "Choose Colour Theme" },
-    { "<leader>co", prompt_kitty_opacity,                                     desc = "Kitty Opacity" },
     -- { "<leader>nt", "<cmd>NvimTreeToggle<CR>",                                desc = "Toggle Nvim Tree" },
     -- { "<leader>nt", "<cmd>Neotree toggle filesystem left<CR>",                desc = "Toggle Neo-tree" },
     { "<leader>n",  group = "Notes/Notifications",                              icon = { icon = "󰎞 ", color = "blue" } },
@@ -4815,7 +4901,6 @@ wkr.add({
     { "<leader>uw", desc = "Toggle Wrap" },
     { "<leader>uc", desc = "Toggle Conceal" },
     { "<leader>uT", desc = "Toggle Treesitter" },
-    { "<leader>ub", desc = "Toggle Background" },
     { "<leader>uh", desc = "Toggle Inlay Hints" },
     { "<leader>ug", desc = "Toggle Indent Guides" },
     { "<leader>uD", desc = "Toggle Dim" },

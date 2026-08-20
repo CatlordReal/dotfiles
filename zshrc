@@ -1,67 +1,48 @@
-# Powerlevel10k instant prompt
+# Linux zsh configuration installed by linux-setup.sh.
+
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
+export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
+
+# Powerlevel10k instant prompt and theme.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# PATH / environment
-export PATH="$HOME/.config/utilities:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-#export PATH="/.cargo/bin:/opt/homebrew/bin:/user/local/bin:opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/kianconti/.jenv/shims:/Users/kianconti/.jenv/bin:/Library/Java/JavaVirtualMachines/microsoft-11.jdk/Contents/Home/bin:/.config/utilities"
-export LDFLAGS="-L/opt/homebrew/Cellar/jpeg/9f/lib"
-export CPPFLAGS="-I/opt/homebrew/Cellar/jpeg/9f/include"
-export PATH="$PATH:/usr/local/share/dotnet"
-export DOTNET_ROOT="/opt/homebrew/opt/dotnet@8/libexec"
-export PATH="$DOTNET_ROOT:$PATH"
-export PATH="$HOME/.dotnet/tools:$PATH"
-export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
-export LDFLAGS="-L/opt/homebrew/opt/sfml@2/lib"
-export CPPFLAGS="-I/opt/homebrew/opt/sfml@2/include"
-export PKG_CONFIG_PATH="/opt/homebrew/opt/sfml@2/lib/pkgconfig"
-export CMAKE_PREFIX_PATH="/opt/homebrew/opt/sfml@2"
-export PATH="$HOME/dotfiles/scripts:$PATH"
+for p10k_theme in \
+  "${XDG_DATA_HOME:-$HOME/.local/share}/powerlevel10k/powerlevel10k.zsh-theme" \
+  /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme \
+  /usr/share/powerlevel10k/powerlevel10k.zsh-theme; do
+  if [[ -r "$p10k_theme" ]]; then
+    source "$p10k_theme"
+    break
+  fi
+done
+[[ -r "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
 
-# Conda
-__conda_setup="$('/opt/homebrew/Caskroom/miniforge/base/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh" ]; then
-        . "/opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh"
-    else
-        export PATH="/opt/homebrew/Caskroom/miniforge/base/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-
-# Completion + fzf-tab
+# Completion.
 autoload -U compinit
 compinit
 zstyle ':completion:*' menu select
 zstyle ':completion:*:descriptions' format '[%d]'
-zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
-source ~/.fzf-tab/fzf-tab.zsh
 
-# Utilities
-. /opt/homebrew/etc/profile.d/z.sh
+# Optional shell plugins installed outside this repository.
+for plugin in \
+  "$HOME/.fzf-tab/fzf-tab.zsh" \
+  "$HOME/.zsh-autosuggestions/zsh-autosuggestions.zsh" \
+  "$HOME/.zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"; do
+  [[ -r "$plugin" ]] && source "$plugin"
+done
 
-# Powerlevel10k
-source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init zsh)"
+fi
 
-# Plugins
-source ~/.zsh-autosuggestions/zsh-autosuggestions.zsh
-fpath+=(~/.zsh-completions)
-
-# fzf (Homebrew)
-source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
-source /opt/homebrew/opt/fzf/shell/completion.zsh
-
-# Syntax highlighting must be last
-source ~/.zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-# Must be last
-source ~/.zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-# [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-export PATH="$HOME/.local/bin:$PATH"
-export PATH="$PATH:$(go env GOPATH)/bin"
-export PATH="$HOME/.local/bin:$PATH"
-export PATH="$HOME/.local/bin:$PATH"
+if command -v fzf >/dev/null 2>&1; then
+  for fzf_script in \
+    /usr/share/fzf/shell/key-bindings.zsh \
+    /usr/share/fzf/shell/completion.zsh \
+    "$HOME/.fzf/shell/key-bindings.zsh" \
+    "$HOME/.fzf/shell/completion.zsh"; do
+    [[ -r "$fzf_script" ]] && source "$fzf_script"
+  done
+fi

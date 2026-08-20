@@ -1,0 +1,56 @@
+name: Kali install
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/kali-install.yml"
+      - "linux-setup.sh"
+      - "tests/**"
+      - "nvim/**"
+      - "kitty/**"
+      - "alacritty/**"
+      - "btop/**"
+      - "lazygit/**"
+      - "yazi/**"
+      - "espanso/**"
+      - "zshrc"
+      - ".tmux.conf"
+      - ".p10k.zsh"
+      - "starship.toml"
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container: kalilinux/kali-rolling
+
+    steps:
+      - name: Prepare Kali container
+        run: |
+          apt-get update
+          apt-get install -y -- ca-certificates git bash neovim lua5.1 zsh
+
+      - uses: actions/checkout@v4
+
+      - name: Run focused tests
+        run: |
+          bash -n linux-setup.sh tests/test-linux-setup.sh tests/test-nvim-colorschemes.sh
+          tests/test-linux-setup.sh
+          tests/test-nvim-colorschemes.sh
+          luac -p nvim/init.lua nvim/lua/imported_colorschemes.lua
+          zsh -n zshrc
+
+      - name: Install all components and packages
+        env:
+          HOME: /tmp/dotfiles-home
+          XDG_CONFIG_HOME: /tmp/dotfiles-home/.config
+          XDG_DATA_HOME: /tmp/dotfiles-home/.local/share
+        run: |
+          ./linux-setup.sh
+          ./linux-setup.sh --no-neovim-bootstrap
+          test -f "$XDG_CONFIG_HOME/nvim/init.lua"
+          test -f "$XDG_CONFIG_HOME/kitty/kitty.conf"
+          test -f "$HOME/.zshrc"
+          test -f "$HOME/.tmux.conf"
+          test -f "$HOME/.p10k.zsh"
