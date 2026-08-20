@@ -31,7 +31,7 @@ jobs:
           apt-get update
           apt-get install -y -- ca-certificates git bash neovim lua5.1 zsh
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run focused tests
         run: |
