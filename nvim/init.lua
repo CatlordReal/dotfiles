@@ -132,6 +132,20 @@ local color_theme_specs = {
         background = "dark",
     },
     {
+        id = "sunset",
+        label = "Sunset",
+        nvim = "sunset",
+        family = "dusknotes",
+        background = "dark",
+    },
+    {
+        id = "dusk",
+        label = "Dusk",
+        nvim = "dusk",
+        family = "dusknotes",
+        background = "dark",
+    },
+    {
         id = "tokyonight",
         label = "Tokyo Night",
         nvim = "tokyonight",
@@ -252,6 +266,8 @@ local main_color_theme_ids = {
 }
 
 local extra_color_theme_ids = {
+    "sunset",
+    "dusk",
     "tokyonight",
     "tokyonight-day",
     "kanagawa",
