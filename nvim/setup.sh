@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-MIN_NVIM_VERSION="0.11.0"
+MIN_NVIM_VERSION="0.12.0"
+MIN_TREE_SITTER_CLI_VERSION="0.26.1"
 MIN_NODE_VERSION="18.0.0"
 DOTNET_CHANNEL="10.0"
 INSTALL_EXTRA_RUNTIMES="${INSTALL_EXTRA_RUNTIMES:-1}"
@@ -133,6 +134,10 @@ version_lt() {
 
 current_nvim_version() {
     "$1" --version 2>/dev/null | awk 'NR==1 { sub(/^v/, "", $2); print $2; exit }'
+}
+
+current_tree_sitter_version() {
+    tree-sitter --version 2>/dev/null | awk 'NR==1 { sub(/^v/, "", $2); print $2; exit }'
 }
 
 current_node_version() {
@@ -285,7 +290,7 @@ ensure_macos_build_tools() {
 install_macos_packages() {
     ensure_macos_build_tools
     ensure_homebrew
-    brew_install_if_missing git ripgrep fd sqlite libxml2 node python lua pytest lazygit gh rust
+    brew_install_if_missing git ripgrep fd sqlite libxml2 node python lua pytest lazygit gh rust tree-sitter-cli
 }
 
 detect_linux_package_manager() {
@@ -391,6 +396,9 @@ install_linux_logical() {
         apt-get:node)
             linux_try_install "$mode" "nodejs npm"
             ;;
+        apt-get:tree-sitter)
+            linux_try_install "$mode" "tree-sitter-cli" "tree-sitter"
+            ;;
         apt-get:lua)
             linux_try_install "$mode" "lua5.1 luarocks" "lua5.4 luarocks"
             ;;
@@ -433,6 +441,9 @@ install_linux_logical() {
             ;;
         dnf:node|yum:node)
             linux_try_install "$mode" "nodejs npm"
+            ;;
+        dnf:tree-sitter|yum:tree-sitter)
+            linux_try_install "$mode" "tree-sitter-cli" "tree-sitter"
             ;;
         dnf:lua|yum:lua)
             linux_try_install "$mode" "lua luarocks"
@@ -477,6 +488,9 @@ install_linux_logical() {
         pacman:node)
             linux_try_install "$mode" "nodejs npm"
             ;;
+        pacman:tree-sitter)
+            linux_try_install "$mode" "tree-sitter"
+            ;;
         pacman:lua)
             linux_try_install "$mode" "lua luarocks"
             ;;
@@ -520,6 +534,9 @@ install_linux_logical() {
         zypper:node)
             linux_try_install "$mode" "nodejs npm" "nodejs20 npm20" "nodejs18 npm18"
             ;;
+        zypper:tree-sitter)
+            linux_try_install "$mode" "tree-sitter-cli" "tree-sitter"
+            ;;
         zypper:lua)
             linux_try_install "$mode" "lua51 luarocks" "lua54 luarocks" "lua luarocks"
             ;;
@@ -555,6 +572,7 @@ install_linux_packages() {
     install_linux_logical xdg required
     install_linux_logical python required
     install_linux_logical node required
+    install_linux_logical tree-sitter required
     install_linux_logical lua required
 
     if [[ "$INSTALL_EXTRA_RUNTIMES" -eq 1 ]]; then
@@ -675,6 +693,24 @@ ensure_npm_tools() {
     run npm install --global typescript ts-node
 }
 
+ensure_tree_sitter_cli() {
+    local version
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log "Would require tree-sitter-cli >= $MIN_TREE_SITTER_CLI_VERSION from the system package manager"
+        return
+    fi
+    if have tree-sitter; then
+        version="$(current_tree_sitter_version || true)"
+        if [[ -n "$version" ]] && version_ge "$version" "$MIN_TREE_SITTER_CLI_VERSION"; then
+            log "tree-sitter-cli $version satisfies the minimum version"
+            return
+        fi
+        die "tree-sitter-cli ${version:-unknown} is below required $MIN_TREE_SITTER_CLI_VERSION; upgrade it with your system package manager"
+    else
+        die "tree-sitter-cli >= $MIN_TREE_SITTER_CLI_VERSION is required; install it with your system package manager"
+    fi
+}
+
 install_neovim_locally() {
     local tmp_dir archive_url version archive_file extracted_dir target_dir asset_name
     ensure_dir "$LOCAL_BIN"
@@ -705,6 +741,7 @@ PY
 )
 
     version="${nvim_release[0]}"
+    version_ge "$version" "$MIN_NVIM_VERSION" || die "latest Neovim release $version is below required $MIN_NVIM_VERSION"
     archive_url="${nvim_release[1]}"
     asset_name="${archive_url##*/}"
     target_dir="$LOCAL_OPT/nvim-$version"
@@ -856,6 +893,10 @@ verify_post_install() {
     require_command ts-node ts-node
     require_command pytest pytest
     require_command "$NVIM_BIN" neovim
+    require_command tree-sitter tree-sitter-cli
+    local tree_sitter_version
+    tree_sitter_version="$(current_tree_sitter_version || true)"
+    [[ -n "$tree_sitter_version" ]] && version_ge "$tree_sitter_version" "$MIN_TREE_SITTER_CLI_VERSION" || die "tree-sitter-cli ${tree_sitter_version:-unknown} is below required $MIN_TREE_SITTER_CLI_VERSION"
 
     local mason_required=(
         "$MASON_BIN_DIR/clangd"
@@ -892,6 +933,7 @@ main() {
     ensure_node_runtime
     ensure_npm_tools
     resolve_nvim
+    ensure_tree_sitter_cli
     ensure_dotnet_sdk
     ensure_dotnet_tools
 

@@ -159,6 +159,32 @@ test_failure_rolls_back_prior_component() {
     [[ "$backup_count" == 0 ]] || fail 'rollback left an nvim backup behind'
 }
 
+test_old_neovim_cannot_bootstrap() {
+    local home fakebin
+    home="$(new_home old-nvim)"; fakebin="$home/fakebin"; mkdir -p "$fakebin"
+    printf '%s\n' '#!/bin/sh' 'printf "%s\\n" Linux' >"$fakebin/uname"
+    printf '%s\n' '#!/bin/sh' 'printf "%s\\n" "NVIM v0.11.5"' >"$fakebin/nvim"
+    chmod +x "$fakebin/uname" "$fakebin/nvim"
+    if HOME="$home" XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" PATH="$fakebin:$PATH" "$BASH_BIN" "$SETUP" --components nvim --no-packages >/dev/null 2>&1; then
+        fail 'old Neovim was allowed to bootstrap nvim-treesitter'
+    fi
+}
+
+test_treesitter_cli_is_not_installed_by_npm() {
+    if grep -Eq 'npm install.*tree-sitter-cli|tree-sitter-cli.*npm install' "$ROOT/nvim/setup.sh"; then
+        fail 'nvim setup installs tree-sitter-cli through npm'
+    fi
+}
+
+test_kali_nvim_package_set_includes_treesitter() {
+    grep -Fq 'for package in neovim tree-sitter-cli git' "$SETUP" || fail 'Kali nvim package set omits tree-sitter CLI package'
+}
+
+test_macos_uses_treesitter_cli_formula() {
+    grep -Fq 'rust tree-sitter-cli' "$ROOT/nvim/setup.sh" || fail 'macOS setup does not install tree-sitter-cli formula'
+    if grep -Fq 'rust tree-sitter"' "$ROOT/nvim/setup.sh"; then fail 'macOS setup installs tree-sitter library formula'; fi
+}
+
 test_clean_install_all_mappings
 test_existing_skip_and_backup
 test_p10k_existing_skip_and_backup
@@ -169,4 +195,8 @@ test_register_keeps_external_symlink_source
 test_errors_dry_run_and_idempotency
 test_theme_import_requires_backup_for_existing_nvim
 test_failure_rolls_back_prior_component
+test_old_neovim_cannot_bootstrap
+test_treesitter_cli_is_not_installed_by_npm
+test_kali_nvim_package_set_includes_treesitter
+test_macos_uses_treesitter_cli_formula
 printf 'PASS: linux-setup tests\n'

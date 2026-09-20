@@ -11,6 +11,8 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly DEFAULT_COMPONENTS=(nvim kitty alacritty btop lazygit yazi zsh tmux p10k starship espanso)
 readonly JETBRAINS_NERD_FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.0/JetBrainsMono.tar.xz"
 readonly JETBRAINS_NERD_FONT_SHA256="0227b220360a6f819b9ead92343e8112b34733054782561af50cfba1e8afab63"
+readonly MIN_NVIM_VERSION="0.12.0"
+readonly MIN_TREE_SITTER_CLI_VERSION="0.26.1"
 
 DRY_RUN=0
 NO_PACKAGES=0
@@ -298,6 +300,19 @@ require_kali_apt() {
 }
 
 require_linux() { [[ "$(uname -s)" == Linux ]] || die "linux-setup supports Linux only"; }
+version_ge() {
+    local left right i l r
+    IFS='.' read -r -a left <<<"${1#v}"
+    IFS='.' read -r -a right <<<"${2#v}"
+    for i in 0 1 2; do
+        l="${left[i]:-0}"; r="${right[i]:-0}"
+        (( 10#$l > 10#$r )) && return 0
+        (( 10#$l < 10#$r )) && return 1
+    done
+    return 0
+}
+current_nvim_version() { nvim --version 2>/dev/null | awk 'NR == 1 { sub(/^v/, "", $2); print $2; exit }'; }
+current_tree_sitter_version() { tree-sitter --version 2>/dev/null | awk '{ sub(/^v/, "", $2); print $2; exit }'; }
 package_installed() { dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null | grep -qx installed; }
 package_available() { apt-cache show "$1" >/dev/null 2>&1; }
 
@@ -316,7 +331,7 @@ select_component_packages() {
     for component in "${COMPONENTS[@]}"; do
         case "$component" in
             nvim)
-                for package in neovim git curl ca-certificates build-essential pkg-config unzip tar gzip xz-utils ripgrep fd-find fzf jq python3 python3-pip python3-venv nodejs npm sqlite3 libsqlite3-dev libxml2-utils xdg-utils lua5.1 luarocks; do add_package "$package" yes; done
+                for package in neovim tree-sitter-cli git curl ca-certificates build-essential pkg-config unzip tar gzip xz-utils ripgrep fd-find fzf jq python3 python3-pip python3-venv nodejs npm sqlite3 libsqlite3-dev libxml2-utils xdg-utils lua5.1 luarocks; do add_package "$package" yes; done
                 ;;
             kitty|alacritty)
                 add_package "$component" yes
@@ -409,9 +424,19 @@ install_packages() {
 bootstrap_neovim() {
     contains_component nvim || return 0
     (( NO_NEOVIM_BOOTSTRAP )) && return 0
-    if ! command -v nvim >/dev/null 2>&1; then warn "nvim is unavailable; skipped Lazy sync"; return; fi
+    if (( DRY_RUN )); then
+        log "Would require Neovim >= $MIN_NVIM_VERSION and tree-sitter-cli >= $MIN_TREE_SITTER_CLI_VERSION before Lazy sync"
+        log "+ nvim --headless '+Lazy! sync' +qa"
+        return
+    fi
+    if ! command -v nvim >/dev/null 2>&1; then die "nvim is required for plugin bootstrap; install Neovim >= $MIN_NVIM_VERSION or use --no-neovim-bootstrap"; fi
+    local nvim_version tree_sitter_version
+    nvim_version="$(current_nvim_version)"
+    [[ -n "$nvim_version" ]] && version_ge "$nvim_version" "$MIN_NVIM_VERSION" || die "Neovim ${nvim_version:-unknown} is too old; require >= $MIN_NVIM_VERSION for nvim-treesitter"
+    if ! command -v tree-sitter >/dev/null 2>&1; then die "tree-sitter-cli >= $MIN_TREE_SITTER_CLI_VERSION is required for parser bootstrap"; fi
+    tree_sitter_version="$(current_tree_sitter_version)"
+    [[ -n "$tree_sitter_version" ]] && version_ge "$tree_sitter_version" "$MIN_TREE_SITTER_CLI_VERSION" || die "tree-sitter-cli ${tree_sitter_version:-unknown} is too old; require >= $MIN_TREE_SITTER_CLI_VERSION"
     log "Syncing Neovim plugins with Lazy"
-    if (( DRY_RUN )); then log "+ nvim --headless '+Lazy! sync' +qa"; return; fi
     XDG_CONFIG_HOME="$XDG_CONFIG_HOME_VALUE" XDG_DATA_HOME="$XDG_DATA_HOME_VALUE" nvim --headless '+Lazy! sync' +qa
 }
 

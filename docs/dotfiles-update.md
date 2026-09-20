@@ -1,0 +1,11 @@
+# Dotfiles updater
+
+`scripts/update-dotfiles.py` keeps its own clone at `$XDG_CACHE_HOME/dotfiles-update/repo` (or `~/.cache/dotfiles-update/repo`) and never uses `~/dotfiles`. Its default source is `https://github.com/CatlordReal/dotfiles.git`, branch `main`.
+
+Use `python3 scripts/update-dotfiles.py --refresh` to fetch and list the exact changed paths, backup scope, revision, and plan ID. Applying requires `--apply --yes --revision <preview revision> --plan-id <preview plan ID>` to bind approval to the same source contents and destination fingerprints. Neovim does this automatically, shows exact paths, and asks for confirmation. `DotfilesUpdateCheck` previews; `DotfilesUpdate` updates installed config components; `DotfilesUpdateAll` also offers existing root shell files.
+
+Supported repository mappings are tracked regular files below `alacritty/`, `btop/`, `espanso/`, `karabiner/`, `kitty/`, `lazygit/`, `nvim/`, and `yazi/` to matching already-installed directories under `$XDG_CONFIG_HOME` (or `~/.config`). Missing components are skipped, so a Linux update does not create `karabiner`. Root `.p10k.zsh` and `.tmux.conf` update only when that destination already exists and `--include-root-shell` is passed. macOS maps `.zshrc` to `~/.zshrc`; Linux maps repository `zshrc` to `~/.zshrc`, matching `linux-setup.sh`. This explicit opt-in avoids overwriting unrelated shell files containing local secrets. Root `starship.toml` and `tmux.conf` update only when matching files already exist under the config home. Other repository paths are ignored.
+
+The updater copies changed tracked files only. It never deletes destination files, runs repository scripts, follows source or destination symlinks, or accepts paths escaping the configured home/config roots. Before any copy it stores originals in `$XDG_STATE_HOME/dotfiles-update/backups/<UTC timestamp-random>/`; if copying fails it restores every target already backed up. A non-blocking lock prevents concurrent runs. `last-update.json` records the backup location and changed paths.
+
+The Neovim helper is bundled at `nvim/scripts/update-dotfiles.py`, so a copied `~/.config/nvim` does not need a nearby repository. For tests or a disposable preview, override `--cache-dir`, `--state-dir`, `--config-home`, and `--home`. Those options make no network call unless `--refresh` is also supplied.

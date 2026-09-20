@@ -1,9 +1,11 @@
-# Kali Linux dotfiles
+# Dotfiles
+
+Neovim supports [time-based Catppuccin rotation, C++ runners, and a dotfiles updater](docs/neovim-controls.md). The leader key is Space. [Tree-sitter uses the new API](docs/treesitter-main-migration.md), requiring Neovim 0.12+ and Tree-sitter CLI 0.26.1+.
 
 `linux-setup.sh` installs every Linux-supported configuration in this repository on Kali Linux. It installs missing APT packages, a verified JetBrainsMono Nerd Font when a terminal is selected, configuration files, and Neovim plugins.
 
 ```sh
-git clone https://github.com/kianconti/dotfiles.git
+git clone https://github.com/CatlordReal/dotfiles.git
 cd dotfiles
 ./linux-setup.sh --dry-run
 ./linux-setup.sh
@@ -50,6 +52,12 @@ tests/test-linux-setup.sh
 tests/test-nvim-colorschemes.sh
 luac -p nvim/init.lua nvim/lua/imported_colorschemes.lua
 zsh -n zshrc
+nvim --headless -u NONE -i NONE -l tests/test-treesitter-migration.lua
+nvim --headless -u NONE -i NONE -l tests/test-theme-rotation.lua
+nvim --headless -u NONE -i NONE -l tests/test-cpp-runner.lua
+nvim --headless -u NONE -i NONE -l tests/test-cpp-terminal.lua
+python3 tests/test-dotfiles-update.py
+nvim --headless -u NONE -i NONE -l tests/test-dotfiles-update.lua
 ```
 
 Automatic package installation intentionally supports Kali only. `--no-packages` provides a configuration-only path on other Linux distributions. The installer refuses macOS; Neovim and Kitty configuration remains portable and can be installed separately there.

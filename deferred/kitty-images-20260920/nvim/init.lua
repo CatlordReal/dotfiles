@@ -63,8 +63,8 @@ local catppuccin_flavour_list = { "latte", "frappe", "macchiato", "mocha" }
 local catppuccin_flavour_file = vim.fn.stdpath("state") .. "/catppuccin_flavour.txt"
 local color_theme_file = vim.fn.stdpath("state") .. "/color_theme.txt"
 local color_theme_favorites_file = vim.fn.stdpath("state") .. "/color_theme_favorites.txt"
-local kitty_config_file = vim.fn.fnamemodify(vim.fn.stdpath("config"), ":h") .. "/kitty/kitty.conf"
-local kitty_current_theme_file = vim.fn.fnamemodify(vim.fn.stdpath("config"), ":h") .. "/kitty/current-theme.conf"
+local kitty_config_file = vim.fn.expand("~/.config/kitty/kitty.conf")
+local kitty_current_theme_file = vim.fn.expand("~/.config/kitty/current-theme.conf")
 local imported_color_themes = require("imported_colorschemes").load()
 
 local function normalize_catppuccin_flavour(flavour)
@@ -816,18 +816,11 @@ local function apply_extra_color_theme(theme_id, opts)
     vim.cmd("redraw!")
 end
 
-local theme_rotation = require("theme_rotation")
 local function apply_color_theme(theme_id, opts)
-    if theme_id == "catppuccin-rotation" then
-        theme_rotation.start()
-        return
-    end
     local spec = get_color_theme_spec(theme_id)
     if not spec then
         return
     end
-
-    if not opts or (opts.persist ~= false and not opts.rotation) then theme_rotation.stop() end
 
     if spec.kind == "catppuccin" then
         apply_catppuccin_theme(spec.catppuccin, vim.tbl_extend("force", opts or {}, {
@@ -1039,15 +1032,7 @@ local function open_imported_color_theme_picker()
 end
 
 local function choose_catppuccin_flavour()
-    local entries = {
-        {
-            label = "Catppuccin rotation" .. (theme_rotation.enabled() and " (active)" or ""),
-            shortcut = "r",
-            action = function() theme_rotation.start() end,
-        },
-        { label = "Rotation times", action = function() theme_rotation.configure() end },
-        { separator = true },
-    }
+    local entries = {}
     for index, spec in ipairs(get_color_theme_specs(main_color_theme_ids)) do
         table.insert(entries, {
             theme = spec,
@@ -1086,13 +1071,12 @@ local function choose_catppuccin_flavour()
 
     open_color_theme_picker({
         title = "Colour Theme",
-        help = "j/k move, <CR> choose, r rotation, 0 more, q close",
+        help = "j/k move, <CR> choose, 0 more, q close",
         entries = entries,
     })
 end
 
-vim.g.color_theme = theme_rotation.enabled() and theme_rotation.current()
-    or normalize_color_theme_id(read_color_theme_id() or COLOR_THEME_DEFAULT)
+vim.g.color_theme = normalize_color_theme_id(read_color_theme_id() or COLOR_THEME_DEFAULT)
 vim.g.catppuccin_flavour = normalize_catppuccin_flavour(
     (get_color_theme_spec(vim.g.color_theme) or {}).catppuccin or CATPPUCCIN_DEFAULT_THEME
 )
@@ -1109,7 +1093,6 @@ end, {
     nargs = 1,
     complete = function()
         local ids = vim.tbl_keys(color_theme_by_id)
-        table.insert(ids, "catppuccin-rotation")
         table.sort(ids)
         return ids
     end,
@@ -1127,7 +1110,7 @@ vim.diagnostic.config({
     },
 })
 vim.api.nvim_create_user_command("CatppuccinMocha", function()
-    apply_color_theme("catppuccin-mocha")
+    apply_catppuccin_theme(CATPPUCCIN_DEFAULT_THEME)
 end, {
     desc = "Reapply Catppuccin Mocha",
 })
@@ -1234,25 +1217,6 @@ apply_dashboard_cat_highlights()
 vim.api.nvim_create_autocmd("ColorScheme", {
     callback = apply_dashboard_cat_highlights,
 })
-
-local dotfiles_update = require("dotfiles_update")
-dotfiles_update.setup()
-vim.keymap.set("n", "<leader>uu", dotfiles_update.update, { desc = "Update Dotfiles" })
-vim.keymap.set("n", "<leader>uU", dotfiles_update.check, { desc = "Check Dotfiles Update" })
-
--- Shared run keys use the C++ runner for C++ buffers.
-local cpp_runner = require("cpp_runner").setup()
-local function run_current_code()
-    if cpp_runner.is_cpp_buffer() then cpp_runner.run_file() else vim.cmd("RunCode") end
-end
-local function run_current_file()
-    if cpp_runner.is_cpp_buffer() then cpp_runner.run_file() else vim.cmd("RunFile") end
-end
-local function run_current_project()
-    if cpp_runner.is_cpp_buffer() then cpp_runner.run_project() else vim.cmd("RunProject") end
-end
-vim.keymap.set("n", "<leader>rs", cpp_runner.settings, { desc = "C++ Run Settings" })
-vim.keymap.set("n", "<leader>rP", cpp_runner.run_project, { desc = "C++ Run Project" })
 
 -- lazy.nvim bootstrap
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
@@ -1362,8 +1326,7 @@ require("lazy").setup({
     },
     -- mini files
     {
-        "nvim-mini/mini.files",
-        version = "*",
+        "echasnovski/mini.files",
         dependencies = { "nvim-mini/mini.icons" },
         config = function()
             local function mini_files_open_background(close_tree)
@@ -1427,7 +1390,7 @@ require("lazy").setup({
     },
     {
         "nvim-neo-tree/neo-tree.nvim",
-        version = "*",
+        branch = "v3.x",
         dependencies = {
             "nvim-lua/plenary.nvim",
             "nvim-tree/nvim-web-devicons",
@@ -1485,6 +1448,9 @@ require("lazy").setup({
                 end,
             },
             filesystem = {
+                components = {
+                    icon = function(...) return require("catppuccin_kitty_tree").neo_icon(...) end,
+                },
                 follow_current_file = {
                     enabled = true,
                 },
@@ -2342,14 +2308,31 @@ require("lazy").setup({
     { "tpope/vim-repeat" },
     {
         "nvim-treesitter/nvim-treesitter",
-        branch = "main",
-        lazy = false,
         build = ":TSUpdate",
-        enabled = function()
-            return vim.fn.has("nvim-0.12") == 1
-        end,
-        config = function()
-            require("dotfiles_treesitter").setup()
+        opts = {
+            ensure_installed = {
+                "lua",
+                "c",
+                "cpp",
+                "c_sharp",
+                "swift",
+                "objc",
+                "json",
+                "xml",
+                "markdown",
+                "markdown_inline",
+                "bash",
+                "python",
+                "html",
+                "yaml",
+                "javascript",
+                "typescript",
+                "css",
+            },
+            highlight = { enable = true },
+        },
+        config = function(_, o)
+            require("nvim-treesitter.configs").setup(o)
         end,
     },
     { "nvim-treesitter/nvim-treesitter-context", config = function() require("treesitter-context").setup({}) end },
@@ -2920,8 +2903,8 @@ require("lazy").setup({
                 focus = true,
                 startinsert = false,
                 filetype = {
-                    cpp = "printf 'Use :CppRunFile for C++\\n'",
                     c = "cd $dir && gcc $fileName -o /tmp/$fileNameWithoutExt && /tmp/$fileNameWithoutExt",
+                    cpp = "cd $dir && g++ $fileName -o /tmp/$fileNameWithoutExt && /tmp/$fileNameWithoutExt",
                     cs = function()
                         local util = require("lspconfig.util")
                         local root = util.root_pattern("*.csproj")(vim.api.nvim_buf_get_name(0))
@@ -2956,20 +2939,10 @@ require("lazy").setup({
                     end,
                 },
             })
-            -- Keep legacy commands safe for C++ as well as the shared keymaps.
-            for command, method in pairs({ RunCode = "run_code", RunFile = "run_filetype", RunProject = "run_project" }) do
-                vim.api.nvim_create_user_command(command, function(args)
-                    if cpp_runner.is_cpp_buffer() or args.fargs[1] == "cpp" then
-                        if command == "RunProject" then cpp_runner.run_project() else cpp_runner.run_file() end
-                    else
-                        require("code_runner")[method](unpack(args.fargs))
-                    end
-                end, { nargs = "*", force = true })
-            end
             -- keymaps for code runner
-            vim.keymap.set("n", "<leader>rr", run_current_code, { desc = "Run Code" })
-            vim.keymap.set("n", "<leader>rf", run_current_file, { desc = "Run File" })
-            vim.keymap.set("n", "<leader>rp", run_current_project, { desc = "Run Project" })
+            vim.keymap.set("n", "<leader>rr", ":RunCode<CR>", { desc = "Run Code" })
+            vim.keymap.set("n", "<leader>rf", ":RunFile<CR>", { desc = "Run File" })
+            vim.keymap.set("n", "<leader>rp", ":RunProject<CR>", { desc = "Run Project" })
             vim.keymap.set("n", "<leader>rc", ":RunClose<CR>", { desc = "Close Runner" })
         end,
     },
@@ -2981,7 +2954,6 @@ vim.schedule(function()
         sync_kitty = false,
         reload_kitty = false,
     })
-    theme_rotation.setup(apply_color_theme)
 end)
 
 -- LSP and diagnostics configuration
@@ -4840,12 +4812,10 @@ wkr.add({
     { "<leader>tr", "<cmd>OverseerRun<cr>",                             desc = "Run Task" },
     { "<leader>tv", "<cmd>ToggleTerm<cr>",                              desc = "Terminal" },
     -- Run group (code runner)
-    { "<leader>rs", cpp_runner.settings, desc = "C++ Run Settings" },
-    { "<leader>rP", cpp_runner.run_project, desc = "C++ Run Project" },
     { "<leader>r",  group = "Run",                                              icon = { icon = "󰑮 ", color = "green" } },
-    { "<leader>rr", run_current_code,                                     desc = "Run Code" },
-    { "<leader>rf", run_current_file,                                     desc = "Run File" },
-    { "<leader>rp", run_current_project,                                  desc = "Run Project" },
+    { "<leader>rr", ":RunCode<CR>",                                     desc = "Run Code" },
+    { "<leader>rf", ":RunFile<CR>",                                     desc = "Run File" },
+    { "<leader>rp", ":RunProject<CR>",                                  desc = "Run Project" },
     { "<leader>rc", ":RunClose<CR>",                                    desc = "Close Runner" },
     { "<leader>rq", "<cmd>DB<CR>",                                      desc = "Run SQL Query" },
     { "<leader>rd", "<cmd>Dotnet run<CR>",                              desc = "Dotnet Run Project" },
@@ -4944,8 +4914,6 @@ wkr.add({
     -- { "<leader>nn", "<cmd>Notifications<CR>",                                    desc = "Show Notifications" },
     { "<leader>no", "<cmd>noh<CR>",                                              desc = "Hide Finds" },
     { "<leader>ud", desc = "Toggle Diagnostics" },
-    { "<leader>uu", dotfiles_update.update, desc = "Update Dotfiles" },
-    { "<leader>uU", dotfiles_update.check, desc = "Check Dotfiles Update" },
     { "<leader>ul", desc = "Toggle Line Numbers" },
     { "<leader>uL", desc = "Toggle Relative Number" },
     { "<leader>us", desc = "Toggle Spelling" },
