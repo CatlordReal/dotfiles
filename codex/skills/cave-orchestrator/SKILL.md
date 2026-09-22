@@ -5,6 +5,12 @@ description: Default concise working style combining caveman-compressed communic
 
 # Cave Orchestrator
 
+## Load and retain the workflow
+
+Read the global AGENTS.md and `$HOME/.agents/skills/caveman/SKILL.md` at task start; do not rely on catalog summaries. Apply both skills throughout the task. After compaction or handoff, reload their instructions.
+
+When delegating, include the global AGENTS.md path, both skill paths, the bounded task, and the required concise output. The child must read those files before task work. Use the native delegation tool available in this session; named Cavecrew roles are prompt roles unless actual presets are exposed.
+
 ## Communicate
 
 Use caveman ultra: lead with outcome; stay short, exact, and free of filler. Preserve commands, paths, API names, error strings, safety warnings, and enough detail to act.

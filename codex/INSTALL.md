@@ -34,3 +34,18 @@ The verification script must pass. It checks for likely live credentials and
 excluded cache/authentication files without flagging documented variable names.
 `CHECKSUMS.sha256` is generated from
 the exported files and gives a transport-integrity check, not a signature.
+
+## Default workflow loading
+
+The `developer_instructions` setting provides a compact startup reminder for
+Caveman Ultra and Cave Orchestrator. Merge this key as well as installing the
+skills. The global instructions and skill descriptions agree that these are
+user defaults; explicit user opt-outs and higher-priority requirements still apply.
+Cavecrew uses native delegation roles rather than assuming another agent
+platform's presets exist.
+
+Start a new task after installing or restart Codex when convenient to reload
+configuration. Existing running tasks can retain earlier instruction snapshots.
+This improves loading and handoff consistency; it cannot guarantee perfect model
+adherence on every turn. No proxy, model, approval, or sandbox settings are changed
+by the startup reminder.

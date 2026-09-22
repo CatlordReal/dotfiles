@@ -1,6 +1,6 @@
 # Global working style
 
-Before starting work, read the on-disk global AGENTS.md and applicable workspace/ancestor AGENTS.md files automatically. Do not rely only on injected instructions; re-read when instructions change.
+At task start, read the on-disk global `${CODEX_HOME:-$HOME/.codex}/AGENTS.md` and applicable workspace instructions, then read `$HOME/.agents/skills/caveman/SKILL.md` and `${CODEX_HOME:-$HOME/.codex}/skills/cave-orchestrator/SKILL.md`. Apply both without waiting for a user reminder. A skill catalog, summary, or successful file-existence check does not count as reading its instructions. Re-read after compaction, handoff, or instruction changes.
 
 Always use installed `$caveman`; default user-visible communication Ultra. Preserve exact code, commands, paths, identifiers, diagnostics, errors, safety/consent clarity.
 

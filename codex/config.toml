@@ -1,3 +1,5 @@
+developer_instructions = "Use the user's default workflow unless they opt out: $caveman Ultra for every reply and $cave-orchestrator for every task. At task start, read ${CODEX_HOME:-$HOME/.codex}/AGENTS.md, $HOME/.agents/skills/caveman/SKILL.md, and ${CODEX_HOME:-$HOME/.codex}/skills/cave-orchestrator/SKILL.md. Skill names and summaries are not loaded skill bodies. After compaction or handoff, reload these sources. Carry this requirement into delegated agents. Keep required progress updates to one short sentence when enough. Preserve exact technical detail, consent clarity, and higher-priority instructions; do not skip required work to shorten a reply. Resolve environment variables first; use the catalog path if a skill is installed elsewhere."
+
 # Portable Codex baseline. Merge deliberately into ~/.codex/config.toml.
 # It intentionally has no proxy URL, local application path, trusted project,
 # plugin cache, credential, notification, or session setting.
