@@ -339,7 +339,7 @@ select_component_packages() {
                 ;;
             btop) add_package btop yes ;;
             lazygit|yazi|starship|espanso) add_package "$component" no ;;
-            zsh) for package in zsh fzf zoxide; do add_package "$package" yes; done ;;
+            zsh) for package in zsh fzf zoxide; do add_package "$package" yes; done; add_package eza no ;;
             tmux) add_package tmux yes ;;
             p10k) add_package zsh-theme-powerlevel10k no ;;
         esac

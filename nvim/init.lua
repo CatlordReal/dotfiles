@@ -1239,6 +1239,7 @@ local dotfiles_update = require("dotfiles_update")
 dotfiles_update.setup()
 vim.keymap.set("n", "<leader>uu", dotfiles_update.update, { desc = "Update Dotfiles" })
 vim.keymap.set("n", "<leader>uU", dotfiles_update.check, { desc = "Check Dotfiles Update" })
+require("writing_tools").setup()
 
 -- Shared run keys use the C++ runner for C++ buffers.
 local cpp_runner = require("cpp_runner").setup()
@@ -1318,7 +1319,8 @@ require("lazy").setup({
                 --   }),
               -- },
                 cursor = {
-                    enable = true,
+                    -- Kitty already renders its own cursor trail (also through tmux).
+                    enable = not (vim.env.KITTY_WINDOW_ID or vim.env.TERM == "xterm-kitty"),
                     timing = animate.gen_timing.linear({ duration = 75, unit = "total" }),
                     path = animate.gen_path.line({
                         predicate = function(destination)

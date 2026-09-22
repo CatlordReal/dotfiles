@@ -18,7 +18,7 @@ from typing import Any
 REMOTE = "https://github.com/CatlordReal/dotfiles.git"
 BRANCH = "main"
 CONFIG_COMPONENTS = {
-    "alacritty", "btop", "espanso", "karabiner", "kitty", "lazygit", "nvim", "yazi",
+    "alacritty", "btop", "espanso", "karabiner", "kitty", "lazygit", "nvim", "yazi", "shell", "codex",
 }
 ROOT_FILES = {".p10k.zsh", ".tmux.conf", ".zshrc"}
 CONFIG_FILES = {"starship.toml": "starship.toml", "tmux.conf": "tmux.conf"}

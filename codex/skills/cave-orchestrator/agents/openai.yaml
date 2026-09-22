@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cave Orchestrator"
+  short_description: "Terse, efficient multi-agent orchestration"
+  default_prompt: "Use $cave-orchestrator to decide and coordinate efficient execution, defaulting toward lower-power parallel delegation for non-trivial work."

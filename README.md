@@ -61,3 +61,23 @@ nvim --headless -u NONE -i NONE -l tests/test-dotfiles-update.lua
 ```
 
 Automatic package installation intentionally supports Kali only. `--no-packages` provides a configuration-only path on other Linux distributions. The installer refuses macOS; Neovim and Kitty configuration remains portable and can be installed separately there.
+
+## Shell listings and writing tools
+
+`ls` uses eza icons when eza is installed. `ll` adds details and Git status,
+`la` includes hidden files, `lla` combines both, and `lt` shows a two-level tree.
+Use `command ls` for the system command. Restart the shell after updating.
+macOS: `brew install eza`; the Linux installer attempts the optional eza package.
+A Nerd Font is needed to display the icons.
+
+Neovim enables British English spellcheck for `.txt` and Markdown. Toggle it
+with `<leader>us`; use `z=` for suggestions. `<leader>wc` or `:WritingCount`
+opens counts for characters, whitespace-delimited words, paragraphs and lines.
+Visual mode counts selected whole lines. See [writing tools](nvim/docs/writing-tools.md).
+Kitty uses its native cursor trail; Neovim's extra cursor animation remains on
+in other terminals. Literal braces work in `:%s/{}//g`; repetition uses
+Vim's default-magic escaped form, for example `:%s/a\{2}/X/g`.
+
+The [portable Codex bundle](codex/INSTALL.md) includes global instructions,
+custom skills, settings and a tool inventory. Review and merge it when installing;
+it excludes authentication, conversations, caches and machine-specific trust.

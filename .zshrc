@@ -69,3 +69,17 @@ export PATH="$HOME/.local/bin:$PATH"
 # Homebridge
 export NVM_DIR="$HOME/.nvm"
 [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && . "/opt/homebrew/opt/nvm/nvm.sh"
+
+# Prefer the shared listing configuration; retain aliases on shell-only installs.
+if [[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/shell/listing.zsh" ]]; then
+  source "${XDG_CONFIG_HOME:-$HOME/.config}/shell/listing.zsh"
+else
+  # Icon-aware directory listings (Nerd Font recommended).
+  if command -v eza >/dev/null 2>&1; then
+    alias ls='eza --icons=auto --group-directories-first'
+    alias ll='eza --icons=auto --group-directories-first --long --git'
+    alias la='eza --icons=auto --group-directories-first --all'
+    alias lla='eza --icons=auto --group-directories-first --long --git --all'
+    alias lt='eza --icons=auto --group-directories-first --tree --level=2'
+  fi
+fi

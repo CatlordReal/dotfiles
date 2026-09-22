@@ -1,0 +1,4 @@
+# Disabled example: copy this block into ~/.codex/config.toml only when
+# Caveman is installed for this user. Do not add a proxy endpoint by default.
+[mcp_servers.caveman]
+command = "__HOME__/.caveman/bin/caveman-mcp"
