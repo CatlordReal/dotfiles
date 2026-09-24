@@ -47,8 +47,9 @@ Imported themes appear under **Imported** in the persistent picker. `<leader>cc`
 ## Tests
 
 ```sh
-bash -n linux-setup.sh tests/test-linux-setup.sh tests/test-nvim-colorschemes.sh
+bash -n linux-setup.sh tests/test-linux-setup.sh tests/test-nvim-colorschemes.sh tests/test-nvim-treesitter-cli.sh
 tests/test-linux-setup.sh
+tests/test-nvim-treesitter-cli.sh
 tests/test-nvim-colorschemes.sh
 luac -p nvim/init.lua nvim/lua/imported_colorschemes.lua
 zsh -n zshrc

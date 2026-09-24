@@ -1240,6 +1240,7 @@ dotfiles_update.setup()
 vim.keymap.set("n", "<leader>uu", dotfiles_update.update, { desc = "Update Dotfiles" })
 vim.keymap.set("n", "<leader>uU", dotfiles_update.check, { desc = "Check Dotfiles Update" })
 require("writing_tools").setup()
+require("project_stats").setup()
 
 -- Shared run keys use the C++ runner for C++ buffers.
 local cpp_runner = require("cpp_runner").setup()

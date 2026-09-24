@@ -411,6 +411,9 @@ install_linux_logical() {
         apt-get:rust)
             linux_try_install "$mode" "rustc cargo"
             ;;
+        apt-get:asciinema)
+            linux_try_install "$mode" "asciinema"
+            ;;
         apt-get:java)
             linux_try_install "$mode" "default-jdk" "openjdk-21-jdk"
             ;;
@@ -456,6 +459,9 @@ install_linux_logical() {
             ;;
         dnf:rust|yum:rust)
             linux_try_install "$mode" "rust cargo"
+            ;;
+        dnf:asciinema|yum:asciinema)
+            linux_try_install "$mode" "asciinema"
             ;;
         dnf:java|yum:java)
             linux_try_install "$mode" "java-latest-openjdk-devel" "java-21-openjdk-devel"
@@ -503,6 +509,9 @@ install_linux_logical() {
         pacman:rust)
             linux_try_install "$mode" "rust"
             ;;
+        pacman:asciinema)
+            linux_try_install "$mode" "asciinema"
+            ;;
         pacman:java)
             linux_try_install "$mode" "jdk-openjdk"
             ;;
@@ -549,6 +558,9 @@ install_linux_logical() {
         zypper:rust)
             linux_try_install "$mode" "rust cargo"
             ;;
+        zypper:asciinema)
+            linux_try_install "$mode" "asciinema"
+            ;;
         zypper:java)
             linux_try_install "$mode" "java-latest-openjdk-devel" "java-21-openjdk-devel"
             ;;
@@ -572,7 +584,8 @@ install_linux_packages() {
     install_linux_logical xdg required
     install_linux_logical python required
     install_linux_logical node required
-    install_linux_logical tree-sitter required
+    install_linux_logical tree-sitter optional
+    install_linux_logical asciinema optional
     install_linux_logical lua required
 
     if [[ "$INSTALL_EXTRA_RUNTIMES" -eq 1 ]]; then
@@ -696,7 +709,7 @@ ensure_npm_tools() {
 ensure_tree_sitter_cli() {
     local version
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        log "Would require tree-sitter-cli >= $MIN_TREE_SITTER_CLI_VERSION from the system package manager"
+        log "Would ensure tree-sitter-cli >= $MIN_TREE_SITTER_CLI_VERSION; Cargo fallback is version-locked"
         return
     fi
     if have tree-sitter; then
@@ -705,10 +718,24 @@ ensure_tree_sitter_cli() {
             log "tree-sitter-cli $version satisfies the minimum version"
             return
         fi
-        die "tree-sitter-cli ${version:-unknown} is below required $MIN_TREE_SITTER_CLI_VERSION; upgrade it with your system package manager"
+        warn "tree-sitter-cli ${version:-unknown} is below required $MIN_TREE_SITTER_CLI_VERSION; installing compatible CLI with Cargo"
     else
-        die "tree-sitter-cli >= $MIN_TREE_SITTER_CLI_VERSION is required; install it with your system package manager"
+        warn "tree-sitter-cli missing; installing compatible CLI with Cargo"
     fi
+
+    if ! have cargo; then
+        if [[ "$OS" == "macos" ]]; then
+            brew_install_if_missing rust
+        else
+            install_linux_logical rust required
+        fi
+    fi
+    require_command cargo cargo
+    run cargo install tree-sitter-cli --version "$MIN_TREE_SITTER_CLI_VERSION" --locked --root "$HOME/.local"
+    if [[ ":$PATH:" != *":$LOCAL_BIN:"* ]]; then export PATH="$LOCAL_BIN:$PATH"; fi
+    version="$(current_tree_sitter_version || true)"
+    [[ -n "$version" ]] && version_ge "$version" "$MIN_TREE_SITTER_CLI_VERSION" || die "Cargo-installed tree-sitter-cli ${version:-unknown} is below required $MIN_TREE_SITTER_CLI_VERSION"
+    log "tree-sitter-cli $version satisfies the minimum version"
 }
 
 install_neovim_locally() {
@@ -958,4 +985,6 @@ main() {
     log "Health log: $HEALTH_LOG"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

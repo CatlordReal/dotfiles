@@ -171,7 +171,7 @@ test_old_neovim_cannot_bootstrap() {
 }
 
 test_treesitter_cli_is_not_installed_by_npm() {
-    if grep -Eq 'npm install.*tree-sitter-cli|tree-sitter-cli.*npm install' "$ROOT/nvim/setup.sh"; then
+    if grep -Eq 'npm.*tree-sitter-cli|tree-sitter-cli.*npm' "$ROOT/nvim/setup.sh"; then
         fail 'nvim setup installs tree-sitter-cli through npm'
     fi
 }
