@@ -10,7 +10,7 @@ local defaults = {
 }
 
 local options = vim.deepcopy(defaults)
-local state = { version = 1, enabled = false, projects = {} }
+local state = { version = 1, enabled = false, paused = false, projects = {} }
 local active
 local last_tick
 local timer
@@ -30,16 +30,17 @@ end
 
 local function clean_state(value)
   if type(value) ~= "table" or type(value.projects) ~= "table" then
-    return { version = 1, enabled = false, projects = {} }
+    return { version = 1, enabled = false, paused = false, projects = {} }
   end
   value.version = 1
   value.enabled = value.enabled == true
+  value.paused = value.enabled and value.paused == true or false
   return value
 end
 
 local function load()
   if vim.fn.filereadable(path()) ~= 1 then
-    return { version = 1, enabled = false, projects = {} }
+    return { version = 1, enabled = false, paused = false, projects = {} }
   end
   local lines = vim.fn.readfile(path())
   if #lines == 0 then return { version = 1, enabled = false, projects = {} } end
@@ -100,27 +101,27 @@ local function add_seconds(item, seconds)
 end
 
 function M.tick()
-  if not state.enabled or not active or not last_tick then return end
+  if not state.enabled or state.paused or not active or not last_tick then return end
   local elapsed = math.max(0, (now() - last_tick) / 1000000000)
   add_seconds(active, elapsed)
   last_tick = now()
 end
 
 function M.activate(buffer)
-  if not state.enabled then return end
+  if not state.enabled or state.paused then return end
   M.tick()
   active = target(buffer or vim.api.nvim_get_current_buf())
   last_tick = now()
 end
 
-local function pause()
+local function pause_tracking()
   M.tick()
   active, last_tick = nil, nil
   save()
 end
 
 function M.record_char(buffer, character)
-  if not state.enabled then return end
+  if not state.enabled or state.paused then return end
   local item = target(buffer)
   if not item or type(character) ~= "string" then return end
   local amount = vim.fn.strchars(character)
@@ -132,14 +133,61 @@ end
 
 function M.start()
   if state.enabled then
-    M.activate()
-    notify("Already recording")
+    if state.paused then
+      state.paused = false
+      M.activate()
+      save()
+      notify("Resumed project stats")
+    else
+      M.activate()
+      notify("Already recording")
+    end
     return
   end
   state.enabled = true
+  state.paused = false
   M.activate()
   save()
   notify("Recording project stats")
+end
+
+function M.pause()
+  if not state.enabled then
+    notify("Project stats are stopped")
+    return
+  end
+  if state.paused then
+    notify("Project stats already paused")
+    return
+  end
+  M.tick()
+  active, last_tick = nil, nil
+  state.paused = true
+  save()
+  notify("Paused project stats")
+end
+
+function M.resume()
+  if not state.enabled then
+    M.start()
+    return
+  end
+  if not state.paused then
+    notify("Project stats are already recording")
+    return
+  end
+  state.paused = false
+  M.activate()
+  save()
+  notify("Resumed project stats")
+end
+
+function M.toggle_pause()
+  if not state.enabled then
+    notify("Start project stats with <leader>wT first")
+    return
+  end
+  if state.paused then M.resume() else M.pause() end
 end
 
 function M.stop()
@@ -147,8 +195,10 @@ function M.stop()
     notify("Recording already stopped")
     return
   end
-  pause()
+  M.tick()
+  active, last_tick = nil, nil
   state.enabled = false
+  state.paused = false
   save()
   notify("Stopped project stats")
 end
@@ -172,6 +222,7 @@ function M.summary(buffer)
     root = item.project,
     file = item.file,
     enabled = state.enabled,
+    paused = state.paused,
     project_seconds = project.seconds,
     project_characters = project.characters,
     file_seconds = file.seconds,
@@ -187,7 +238,7 @@ function M.show()
   end
   local lines = {
     "Project stats", "",
-    "Recording: " .. (value.enabled and "on" or "off"),
+    "Recording: " .. (not value.enabled and "off" or value.paused and "paused" or "on"),
     "Project: " .. value.root,
     "Project time: " .. format_seconds(value.project_seconds),
     "Project typed: " .. value.project_characters .. " characters",
@@ -253,15 +304,19 @@ function M.setup(overrides)
     group = group,
     callback = function(args) M.record_char(args.buf, vim.v.char) end,
   })
-  vim.api.nvim_create_autocmd({ "FocusLost", "VimSuspend", "VimLeavePre" }, { group = group, callback = pause })
+  vim.api.nvim_create_autocmd({ "FocusLost", "VimSuspend", "VimLeavePre" }, { group = group, callback = pause_tracking })
   vim.api.nvim_create_autocmd({ "FocusGained", "VimResume" }, { group = group, callback = function() M.activate() end })
   vim.api.nvim_create_user_command("ProjectStatsStart", M.start, {})
   vim.api.nvim_create_user_command("ProjectStatsStop", M.stop, {})
   vim.api.nvim_create_user_command("ProjectStatsToggle", M.toggle, {})
+  vim.api.nvim_create_user_command("ProjectStatsPause", M.pause, {})
+  vim.api.nvim_create_user_command("ProjectStatsResume", M.resume, {})
+  vim.api.nvim_create_user_command("ProjectStatsPauseToggle", M.toggle_pause, {})
   vim.api.nvim_create_user_command("ProjectStatsShow", M.show, {})
   vim.api.nvim_create_user_command("ProjectTerminalRecord", M.terminal_record, {})
   if options.keymaps then
     vim.keymap.set("n", "<leader>wT", M.toggle, { desc = "Toggle Project Stats" })
+    vim.keymap.set("n", "<leader>wP", M.toggle_pause, { desc = "Pause/Resume Project Stats" })
     vim.keymap.set("n", "<leader>wS", M.show, { desc = "Show Project Stats" })
     vim.keymap.set("n", "<leader>wR", M.terminal_record, { desc = "Record Linux Terminal" })
   end
