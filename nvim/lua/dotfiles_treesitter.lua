@@ -26,7 +26,14 @@ end
 
 function M.setup(treesitter)
   treesitter = treesitter or require("nvim-treesitter")
-  treesitter.setup({ install_dir = vim.fn.stdpath("data") .. "/site" })
+  local modern = type(treesitter.install) == "function"
+  if modern then
+    treesitter.setup({ install_dir = vim.fn.stdpath("data") .. "/site" })
+  else
+    -- Existing master checkouts expose parser installation through configs.setup.
+    treesitter.setup()
+    require("nvim-treesitter.configs").setup({ ensure_installed = M.languages })
+  end
   local group = vim.api.nvim_create_augroup("dotfiles_treesitter", { clear = true })
   vim.api.nvim_create_autocmd("FileType", {
     group = group,
@@ -34,16 +41,18 @@ function M.setup(treesitter)
     callback = function(args) M.start_buffer(args.buf) end,
   })
   M.refresh_buffers()
-  local task = treesitter.install(M.languages)
-  task:await(function(err)
-    vim.schedule(function()
-      if err then
-        vim.notify("Tree-sitter parser install failed: " .. tostring(err), vim.log.levels.WARN)
-      else
-        M.refresh_buffers()
-      end
+  if modern then
+    local task = treesitter.install(M.languages)
+    task:await(function(err)
+      vim.schedule(function()
+        if err then
+          vim.notify("Tree-sitter parser install failed: " .. tostring(err), vim.log.levels.WARN)
+        else
+          M.refresh_buffers()
+        end
+      end)
     end)
-  end)
+  end
 end
 
 return M

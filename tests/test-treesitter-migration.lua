@@ -35,6 +35,19 @@ for filetype, language in pairs({ cpp = "cpp", cs = "c_sharp", sh = "bash" }) do
   assert(seen[#seen].buffer == value and seen[#seen].language == language)
 end
 local retry = buffer("cpp")
+local previous_configs = package.loaded["nvim-treesitter.configs"]
+local legacy_setup_called = false
+local legacy_options
+package.loaded["nvim-treesitter.configs"] = {
+  setup = function(value) legacy_options = value end,
+}
+runner.setup({
+  setup = function() legacy_setup_called = true end,
+})
+assert(legacy_setup_called, "legacy nvim-treesitter setup was not called")
+assert(vim.deep_equal(legacy_options.ensure_installed, runner.languages), "legacy parser list was not configured")
+package.loaded["nvim-treesitter.configs"] = previous_configs
+
 local callback
 runner.setup({
   setup = function() end,
