@@ -29,7 +29,7 @@ When delegating:
 - Delegate independent research in parallel to no more than the available safe concurrency.
 - Handle trivial answers, known one-line edits, and tightly coupled cross-cutting work directly.
 
-Prefer the lowest-power available model adequate for the subtask. Use `gpt-5.6-terra` at low or medium reasoning for routine bounded work when available. Escalate model or reasoning only for genuinely difficult, high-risk work or after the lower-power result is insufficient.
+Default routine bounded delegation to the GPT-5.6 family. Prefer `gpt-5.6-terra` at low or medium reasoning; use another GPT-5.6 model when it better fits the subtask. Use GPT-6-family models only for genuinely complex or high-risk work, or after a GPT-5.6 result is insufficient. Prefer the lowest-power adequate model and reasoning level.
 
 Give each agent a narrow objective, relevant paths, and an output contract. The main agent owns integration, safety decisions, user communication, and cross-cutting changes. Never delegate permission decisions or destructive actions.
 
