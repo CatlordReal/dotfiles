@@ -14,7 +14,7 @@ local state = { version = 1, enabled = false, paused = false, projects = {} }
 local active
 local last_tick
 local timer
-local runtime_key = "dotfiles_project_stats_runtime"
+local runtime_key = "_dotfiles_project_stats_runtime"
 
 local function notify(message, level)
   vim.notify(message, level or vim.log.levels.INFO, { title = "Project stats" })
@@ -288,7 +288,7 @@ end
 
 function M.setup(overrides)
   options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), overrides or {})
-  local previous = vim.g[runtime_key]
+  local previous = package.loaded[runtime_key]
   if previous and previous.timer then
     previous.timer:stop()
     previous.timer:close()
@@ -329,7 +329,7 @@ function M.setup(overrides)
   else
     timer = nil
   end
-  vim.g[runtime_key] = { timer = timer }
+  package.loaded[runtime_key] = { timer = timer }
   if state.enabled then M.activate() end
   return M
 end

@@ -8,6 +8,14 @@ local project = vim.fn.tempname()
 vim.fn.mkdir(project, "p")
 project = vim.fs.normalize(project)
 local stats = require("project_stats")
+local timer_setup_ok, timer_setup_error = pcall(stats.setup, {
+  keymaps = false,
+  timer = true,
+  state_path = state_path,
+  now = function() return clock end,
+  root_resolver = function() return project end,
+})
+assert(timer_setup_ok, timer_setup_error)
 stats.setup({
   keymaps = false,
   timer = false,
