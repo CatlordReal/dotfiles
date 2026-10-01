@@ -8,6 +8,10 @@ File preferences let you choose the compiler executable, C++ standard, compiler 
 
 `CppRunSettings` keeps compiler, standard, flags, and program arguments separate from project preferences. Edits use a draft and save only after the final prompt. Project settings are stored in Neovim's state directory, never in the project. `CppRunProject` opens project preferences when no root exists, then runs after save. Before build it saves modified buffers below that configured root.
 
-Set the root plus explicit build and run argv lists there. Runner preferences come from your Neovim state; requested builds use the project's CMakeLists.txt or Makefile as usual. CMake always runs `cmake -S <root> -B <build_dir> -DCMAKE_BUILD_TYPE=<type>` before `cmake --build <build_dir>` and supports an optional target. Make and custom modes run only configured argv. Comma-separated fields represent argv items, not shell syntax.
+On first project run, choose **g++ (no build directory)** or **CMake (creates build/ automatically)**. The g++ option discovers project C++ sources and writes its executable to Neovim's cache. If the project has multiple entry points, open the one to run. Source scanning excludes hidden, build, and vendor directories and has explicit size/depth limits. Projects with complex source selection should use their build system.
 
-The integrated terminal shows compiler and program output. Relative run commands containing `/` resolve below configured project root. CMake executable paths, Make run commands, and custom argv still need explicit configuration.
+CMake always runs `cmake -S <root> -B <build_dir> -DCMAKE_BUILD_TYPE=<type>` before `cmake --build <build_dir>`, creates the build directory, and can infer a single `add_executable` target. Make and custom modes run configured argv. Comma-separated preference fields represent argv items, not shell syntax.
+
+For direct g++ builds, Qt headers in source files or nearby quoted headers trigger `pkg-config` discovery for Qt Core, Gui, and Widgets. Qt6 is preferred, with Qt5 as a fallback. Compiler flags precede sources and linker libraries follow them. This does not run Qt's `moc`, `uic`, or resource compiler: use CMake for `Q_OBJECT`, UI/resource generation, other Qt modules, or unrelated libraries.
+
+The integrated terminal shows compiler and program output. Relative run commands containing `/` resolve below configured project root. Nonstandard CMake executable paths, Make run commands, and custom argv still need explicit configuration.

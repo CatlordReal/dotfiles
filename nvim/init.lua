@@ -2174,7 +2174,68 @@ require("lazy").setup({
                 clear_feline_cache()
 
                 local feline = require("feline")
-                feline.setup()
+                if vim.g.color_theme == "gruvbox-dark" then
+                    local special = require("catppuccin.special.feline")
+                    local G = require("gruvbox").palette
+                    local C = require("catppuccin.palettes").get_palette()
+                    local mode_colors = {
+                        n = { "NORMAL", G.bright_blue }, no = { "N-PENDING", G.bright_blue },
+                        i = { "INSERT", G.bright_green }, ic = { "INSERT", G.bright_green },
+                        t = { "TERMINAL", G.bright_green }, v = { "VISUAL", G.bright_purple },
+                        V = { "V-LINE", G.bright_purple }, ["\22"] = { "V-BLOCK", G.bright_purple },
+                        R = { "REPLACE", G.bright_red }, Rv = { "V-REPLACE", G.bright_red },
+                        s = { "SELECT", G.bright_red }, S = { "S-LINE", G.bright_red },
+                        ["\19"] = { "S-BLOCK", G.bright_red }, c = { "COMMAND", G.bright_orange },
+                        cv = { "COMMAND", G.bright_orange }, ce = { "COMMAND", G.bright_orange },
+                        r = { "PROMPT", G.bright_aqua }, rm = { "MORE", G.bright_aqua },
+                        ["r?"] = { "CONFIRM", G.bright_purple }, ["!"] = { "SHELL", G.bright_green },
+                    }
+                    special.setup({
+                        assets = { lsp = { error = "", warning = "", info = "", hint = "󰌵" } },
+                        sett = {
+                            text = G.dark0_hard, bkg = G.dark0_hard, diffs = G.bright_purple,
+                            extras = G.light4, curr_file = G.bright_orange, curr_dir = G.bright_yellow,
+                        },
+                        mode_colors = mode_colors,
+                    })
+                    local components = special.get_statusline()
+                    local recolor = {
+                        [C.rosewater] = G.light1, [C.red] = G.bright_red,
+                        [C.yellow] = G.bright_yellow, [C.sky] = G.bright_blue,
+                        [C.overlay2] = G.light4, [C.mantle] = G.dark0_hard,
+                    }
+                    local function recolor_highlights(value)
+                        if type(value) ~= "table" then return end
+                        for key, item in pairs(value) do
+                            if (key == "fg" or key == "bg") and recolor[item] then
+                                value[key] = recolor[item]
+                            elseif type(item) == "table" then
+                                recolor_highlights(item)
+                            end
+                        end
+                    end
+                    recolor_highlights(components)
+                    local diagnostics = components.active[2]
+                    if diagnostics[4] then diagnostics[4].enabled = function() return false end end
+                    if diagnostics[5] then diagnostics[5].enabled = function() return false end end
+                    feline.setup({ components = components })
+                else
+                    -- Feline's scroll_bar provider can index outside its eight glyphs
+                    -- during a redraw while a window's cursor/line count changes.
+                    local blocks = { "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█" }
+                    local function safe_scroll_bar(_, opts)
+                        local line = vim.api.nvim_win_get_cursor(0)[1]
+                        local total = math.max(1, vim.api.nvim_buf_line_count(0))
+                        local progress = math.max(0, math.min(1, line / total))
+                        local index = math.floor(progress * 7)
+                        if opts and opts.reverse then index = 7 - index end
+                        return string.rep(blocks[index + 1], 2)
+                    end
+                    local defaults = require("feline.default_components").statusline
+                    defaults.icons.active[2][6].provider = safe_scroll_bar
+                    defaults.noicons.active[2][6].provider = safe_scroll_bar
+                    feline.setup()
+                end
                 pcall(feline.reset_highlights)
                 vim.cmd("redrawstatus")
             end
@@ -3079,8 +3140,7 @@ local function filter_ignored_diagnostics(bufnr, diagnostics)
     return filtered
 end
 
-local function get_visible_diagnostics(bufnr, opts)
-    local diagnostics = original_diagnostic_get(bufnr, opts)
+local function filter_visible_diagnostics(bufnr, diagnostics)
     if not diagnostics or vim.tbl_isempty(diagnostics) then
         return diagnostics
     end
@@ -3096,6 +3156,15 @@ local function get_visible_diagnostics(bufnr, opts)
         end
     end
     return deduped
+end
+
+local function get_visible_diagnostics(bufnr, opts)
+    return filter_visible_diagnostics(bufnr, original_diagnostic_get(bufnr, opts))
+end
+
+local diagnostic_bounds = require("dotfiles_diagnostic_bounds")
+local function get_display_diagnostics(bufnr, opts)
+    return diagnostic_bounds.clamp(bufnr, get_visible_diagnostics(bufnr, opts))
 end
 
 local function diagnostic_virtual_text_key(bufnr, diagnostic)
@@ -3174,13 +3243,17 @@ local function resolve_virtual_text_opts(bufnr, opts)
     return nil
 end
 
-local function refresh_virtual_text(bufnr, opts)
+local function refresh_virtual_text(bufnr, opts, namespace, shown_diagnostics)
     local resolved_bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
     if not resolved_bufnr or not vim.api.nvim_buf_is_valid(resolved_bufnr) then
         return
     end
 
     original_virtual_text_handler.hide(deduped_virtual_text_namespace, resolved_bufnr)
+
+    if not vim.api.nvim_buf_is_loaded(resolved_bufnr) then
+        return
+    end
 
     local handler_opts = resolve_virtual_text_opts(resolved_bufnr, opts)
     if not handler_opts then
@@ -3194,7 +3267,18 @@ local function refresh_virtual_text(bufnr, opts)
 
     -- Some servers publish identical messages for slightly different spans. Collapse those
     -- before rendering virtual text so the line only shows one inline diagnostic message.
-    local diagnostics = dedupe_virtual_text_diagnostics(resolved_bufnr, get_visible_diagnostics(resolved_bufnr, get_opts))
+    local display = get_display_diagnostics(resolved_bufnr, get_opts)
+    if namespace and shown_diagnostics then
+        local combined = {}
+        for _, diagnostic in ipairs(display or {}) do
+            if diagnostic.namespace ~= namespace then
+                combined[#combined + 1] = diagnostic
+            end
+        end
+        vim.list_extend(combined, shown_diagnostics)
+        display = combined
+    end
+    local diagnostics = dedupe_virtual_text_diagnostics(resolved_bufnr, display)
     if diagnostics and not vim.tbl_isempty(diagnostics) then
         original_virtual_text_handler.show(
             deduped_virtual_text_namespace,
@@ -3206,8 +3290,8 @@ local function refresh_virtual_text(bufnr, opts)
 end
 
 vim.diagnostic.handlers.virtual_text = {
-    show = function(_, bufnr, _, opts)
-        refresh_virtual_text(bufnr, opts)
+    show = function(namespace, bufnr, diagnostics, opts)
+        refresh_virtual_text(bufnr, opts, namespace, diagnostics)
     end,
     hide = function(_, bufnr)
         refresh_virtual_text(bufnr)
@@ -3216,7 +3300,7 @@ vim.diagnostic.handlers.virtual_text = {
 
 local function refresh_buffer_diagnostics(bufnr)
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-        local visible = get_visible_diagnostics(bufnr)
+        local visible = get_display_diagnostics(bufnr)
         local by_namespace = {}
         for _, diagnostic in ipairs(visible) do
             local namespace = diagnostic.namespace
@@ -3226,9 +3310,9 @@ local function refresh_buffer_diagnostics(bufnr)
             end
         end
 
-        original_diagnostic_hide(nil, bufnr)
+        vim.diagnostic.hide(nil, bufnr)
         for namespace, diagnostics in pairs(by_namespace) do
-            original_diagnostic_show(namespace, bufnr, diagnostics)
+            vim.diagnostic.show(namespace, bufnr, diagnostics)
         end
         vim.cmd("redrawstatus")
     end
@@ -3242,15 +3326,29 @@ end
 vim.diagnostic.show = function(namespace, bufnr, diagnostics, opts)
     if namespace ~= nil and bufnr ~= nil then
         local resolved_bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+        if not vim.api.nvim_buf_is_valid(resolved_bufnr) then
+            return
+        end
+        if not vim.api.nvim_buf_is_loaded(resolved_bufnr) then
+            diagnostic_bounds.defer_show(namespace, resolved_bufnr, diagnostics, opts)
+            return
+        end
+        diagnostic_bounds.cancel_show(namespace, resolved_bufnr)
         if diagnostics then
-            diagnostics = get_visible_diagnostics(resolved_bufnr, { namespace = namespace })
+            diagnostics = diagnostic_bounds.clamp(resolved_bufnr, filter_visible_diagnostics(resolved_bufnr, diagnostics))
         else
-            diagnostics = get_visible_diagnostics(resolved_bufnr, { namespace = namespace })
+            diagnostics = get_display_diagnostics(resolved_bufnr, { namespace = namespace })
         end
         return original_diagnostic_show(namespace, resolved_bufnr, diagnostics, opts)
     end
 
     return original_diagnostic_show(namespace, bufnr, diagnostics, opts)
+end
+
+vim.diagnostic.hide = function(namespace, bufnr)
+    local resolved_bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
+    diagnostic_bounds.cancel_show(namespace, resolved_bufnr)
+    return original_diagnostic_hide(namespace, bufnr)
 end
 
 local ok_feline_lsp, feline_lsp = pcall(require, "feline.providers.lsp")
