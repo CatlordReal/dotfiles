@@ -133,6 +133,7 @@ final class CursorPack {
     var prior: URL { root.appendingPathComponent("prior-cursors.cape") }
     var prepared: URL { root.appendingPathComponent("prepared-cursors.cape") }
     var marker: URL { root.appendingPathComponent("cursor-active") }
+    var pendingWait: URL { root.appendingPathComponent("legacy-wait-cursor.cape") }
     init(root: URL) {
         self.root = root
         helper = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/mousecloak")
@@ -149,11 +150,19 @@ final class CursorPack {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            let details = String(data: data, encoding: .utf8) ?? ""
-            throw WallpaperFailure(message: "Celeste cursor operation failed. \(details.suffix(800))")
+            let unstyled = (String(data: data, encoding: .utf8) ?? "")
+                .replacingOccurrences(of: "\u{001B}\\[[0-?]*[ -/]*[@-~]", with: "", options: .regularExpression)
+            let details = String(String.UnicodeScalarView(unstyled.unicodeScalars.filter { $0.value == 10 || !CharacterSet.controlCharacters.contains($0) }))
+            let failures = details.components(separatedBy: .newlines).filter { line in
+                let text = line.lowercased()
+                return text.contains("failed") || text.contains("not applied") || text.contains("required") || text.contains("does not match")
+            }
+            let message = failures.isEmpty ? details.trimmingCharacters(in: .whitespacesAndNewlines) : failures.joined(separator: "\n")
+            throw WallpaperFailure(message: "Celeste cursor operation failed. " + String(message.suffix(800)))
         }
     }
     func start() throws {
+        checkLegacyWaitRecovery()
         // Save the user's current cursor registrations before the first change.
         // Never refresh this snapshot while recovering or resuming Celeste mode.
         if !FileManager.default.fileExists(atPath: marker.path) {
@@ -169,16 +178,49 @@ final class CursorPack {
         } else {
             // A crash or previous partial apply may leave Celeste registrations active.
             // Recover the baseline before the expected-current apply check.
-            try run(["--restore-session", prior.path])
+            try restore()
+            return try start()
         }
         try run(["--apply-session", prepared.path, "--expect", prior.path])
         try run(["--verify", prepared.path])
     }
     func restore() throws {
+        checkLegacyWaitRecovery()
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
-        try run(["--restore-session", prior.path])
-        try run(["--verify", prior.path])
+        do {
+            try run(["--restore-session", prior.path])
+            try run(["--verify", prior.path])
+        } catch {
+            // Migrate only the legacy unrecoverable Wait role. Every other saved
+            // cursor must restore and verify exactly before releasing the toggle.
+            var saved = try PropertyListSerialization.propertyList(from: Data(contentsOf: prior), format: nil) as? [String: Any]
+            guard var roles = saved?["Cursors"] as? [String: Any],
+                  let wait = roles.removeValue(forKey: "com.apple.coregraphics.Wait") as? [String: Any],
+                  ((wait["FrameCount"] as? NSNumber)?.intValue ?? 0) > 24,
+                  !roles.isEmpty else { throw error }
+            let remaining = root.appendingPathComponent("legacy-restorable-cursors.cape")
+            saved?["Cursors"] = roles
+            try PropertyListSerialization.data(fromPropertyList: saved!, format: .binary, options: 0).write(to: remaining, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: remaining.path)
+            defer { try? FileManager.default.removeItem(at: remaining) }
+            try run(["--restore-session", remaining.path])
+            try run(["--verify", remaining.path])
+            saved?["Cursors"] = ["com.apple.coregraphics.Wait": wait]
+            let recovery = try PropertyListSerialization.data(fromPropertyList: saved!, format: .binary, options: 0)
+            if FileManager.default.fileExists(atPath: pendingWait.path) {
+                let existing = try PropertyListSerialization.propertyList(from: Data(contentsOf: pendingWait), format: nil) as? NSDictionary
+                guard existing == (saved! as NSDictionary) else { throw WallpaperFailure(message: "An earlier spinning-cursor recovery snapshot must be preserved.") }
+            } else {
+                try recovery.write(to: pendingWait, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: pendingWait.path)
+            }
+        }
         try FileManager.default.removeItem(at: marker)
+    }
+    func checkLegacyWaitRecovery() {
+        if FileManager.default.fileExists(atPath: pendingWait.path), (try? run(["--verify", pendingWait.path])) != nil {
+            try? FileManager.default.removeItem(at: pendingWait)
+        }
     }
 }
 
@@ -190,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var lockDescriptor: Int32 = -1
     var status: NSStatusItem!
     var timer: Timer?
+    let slideshowInterval: TimeInterval = 300
     var enabled = false
     var recoveryNeeded = false
     var lastError: String?
@@ -223,6 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         refresh()
+        cursor.checkLegacyWaitRecovery()
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didWakeNotification] {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -240,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recoveryNeeded = true
             stop()
         }
-        log("ready mode=\(enabled ? "slideshow" : "native") interval=60")
+        log("ready mode=\(enabled ? "slideshow" : "native") interval=\(Int(slideshowInterval))")
         let startupFocusRevision = focusRevision
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -266,10 +310,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             status.button?.setAccessibilityLabel("Wallpaper recovery needed, click to restore")
             return
         }
-        status.button?.image = NSImage(systemSymbolName: enabled ? "photo.on.rectangle.angled" : "mountain.2", accessibilityDescription: enabled ? "Celeste slideshow" : "macOS wallpaper")
+        status.button?.image = NSImage(systemSymbolName: enabled ? "mountain.2.fill" : "mountain.2", accessibilityDescription: enabled ? "Celeste slideshow" : "macOS wallpaper")
         status.button?.image?.isTemplate = true
-        status.button?.toolTip = enabled ? "Celeste wallpapers and cursors · every minute. Click to restore macOS wallpaper; right-click for options." : "macOS wallpaper and cursors. Click for Celeste mode; right-click for options."
-        status.button?.setAccessibilityLabel(enabled ? "Celeste slideshow, every minute" : "macOS wallpaper, click for Celeste slideshow")
+        status.button?.toolTip = enabled ? "Celeste wallpapers and cursors · every 5 minutes. Click to restore macOS wallpaper; right-click for options." : "macOS wallpaper and cursors. Click for Celeste mode; right-click for options."
+        status.button?.setAccessibilityLabel(enabled ? "Celeste slideshow, every 5 minutes" : "macOS wallpaper, click for Celeste slideshow")
     }
     @objc func click() {
         if NSApp.currentEvent?.type == .rightMouseUp { showMenu(); return }
@@ -295,11 +339,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bag = available.shuffled()
             try nextImage()
             timer?.invalidate()
-            timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            timer = Timer(timeInterval: slideshowInterval, repeats: true) { [weak self] _ in
                 guard let self, self.enabled else { return }
                 do { try self.nextImage() } catch { self.slideshowFailed(error) }
             }
             RunLoop.main.add(timer!, forMode: .common)
+            log("slideshow timer interval=\(Int(timer!.timeInterval))")
             lastError = nil
             refresh()
         } catch {
@@ -389,22 +434,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     func showMenu() {
         let menu = NSMenu()
-        let title = NSMenuItem(title: recoveryNeeded ? "Recovery Needed" : (enabled ? "Celeste · Every Minute" : "macOS Wallpaper"), action: nil, keyEquivalent: "")
+        menu.autoenablesItems = false
+        let title = NSMenuItem(title: recoveryNeeded ? "Recovery Needed" : (enabled ? "Celeste · Every 5 Minutes" : "macOS Wallpaper"), action: nil, keyEquivalent: "")
+        title.isEnabled = false
         menu.addItem(title)
         if lastError != nil {
             menu.addItem(withTitle: "Show Error…", action: #selector(showError), keyEquivalent: "").target = self
         }
         menu.addItem(.separator())
-        menu.addItem(withTitle: enabled ? "Restore macOS Wallpaper" : "Start Celeste Slideshow", action: #selector(toggle), keyEquivalent: "").target = self
+        menu.addItem(withTitle: recoveryNeeded ? "Retry Recovery" : (enabled ? "Restore macOS Wallpaper" : "Start Celeste Slideshow"), action: #selector(toggle), keyEquivalent: "").target = self
+        if FileManager.default.fileExists(atPath: cursor.pendingWait.path) {
+            let pending = NSMenuItem(title: "Spinning cursor: restart pending", action: nil, keyEquivalent: "")
+            pending.isEnabled = false
+            menu.addItem(pending)
+        }
         let next = menu.addItem(withTitle: "Next Wallpaper", action: #selector(next), keyEquivalent: "")
         next.target = self
         next.isEnabled = enabled && !recoveryNeeded
         menu.addItem(withTitle: "Open Wallpaper Folder", action: #selector(openFolder), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit and Restore", action: #selector(quit), keyEquivalent: "q").target = self
-        status.menu = menu
-        status.button?.performClick(nil)
-        status.menu = nil
+        guard let button = status.button else { return }
+        menu.popUp(positioning: title, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
     }
     @objc func openFolder() { NSWorkspace.shared.open(folder) }
     @objc func quit() {

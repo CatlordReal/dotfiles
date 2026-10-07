@@ -44,9 +44,11 @@ bin/mousecloak --verify /absolute/private/prior.cape
 `--prepare` changes no cursor state. It intersects target keys with current
 readable registrations, excludes legacy `Arrow` and `IBeam` on macOS 27, and
 requires effective `ArrowS` and `IBeamS`. It also excludes target or baseline
-roles above Mousecape's reliable 24-frame registration limit. Apple's 30-frame
-`com.apple.coregraphics.Wait` therefore remains native, while the separate
-`com.apple.cursor.4` stays eligible when readable and within the limit.
+roles above Mousecape's reliable 24-frame registration limit and always excludes
+`com.apple.coregraphics.Wait`, including when a legacy/custom Wait currently
+reports fewer frames. Apple's non-round-trippable 30-frame Wait baseline
+therefore remains native, while separate `com.apple.cursor.4` stays eligible
+when readable and within the limit.
 Unsupported roles remain native. It writes target and exact prior capes with
 identical key sets, using paired same-directory temporary files, atomic renames,
 post-serialization parsing, no-overwrite checks, and mode 0600.

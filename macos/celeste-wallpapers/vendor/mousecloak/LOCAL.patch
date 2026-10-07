@@ -26,7 +26,7 @@ index 04c57e3..d5ab18e 100644
  
  #endif
 diff --git a/src/apply.m b/src/apply.m
-index ec37154..f28bd01 100644
+index ec37154..ffeb14b 100644
 --- a/src/apply.m
 +++ b/src/apply.m
 @@ -13,6 +13,9 @@
@@ -202,7 +202,7 @@ index ec37154..f28bd01 100644
  static CGImageRef createProbeImage(size_t pixels) {
      CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
      CGContextRef ctx = CGBitmapContextCreate(NULL, pixels, pixels, 8, 4 * pixels, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
-@@ -302,3 +408,355 @@ void probeCursorOverrides(void) {
+@@ -302,3 +408,356 @@ void probeCursorOverrides(void) {
              MMLog(BOLD "%lu built-in cursor(s) cannot be replaced on this system." RESET, (unsigned long)blockedCount);
      }
  }
@@ -511,7 +511,8 @@ index ec37154..f28bd01 100644
 +    NSMutableDictionary *preparedCursors = [NSMutableDictionary dictionary];
 +    NSMutableDictionary *priorCursors = [NSMutableDictionary dictionary];
 +    for (NSString *identifier in [targetCursors.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
-+        if ([legacyAliases containsObject:identifier])
++        if ([legacyAliases containsObject:identifier] ||
++            [identifier isEqualToString:@"com.apple.coregraphics.Wait"])
 +            continue;
 +        if (!validateCursorDictionary(targetCursors[identifier], identifier, error))
 +            return NO;

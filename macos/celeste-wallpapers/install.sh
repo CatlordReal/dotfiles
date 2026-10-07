@@ -93,7 +93,7 @@ mkdir -p "$staging"
 for file in CelesteWallpapers.swift WallpaperFade.swift CelesteFocusFilter.swift build.sh install.sh README.md .gitignore; do
   [[ -e "$source_root/$file" ]] && cp -p "$source_root/$file" "$staging/$file"
 done
-rsync -a --exclude 'bin/' "$source_root/cursors/" "$staging/cursors/"
+rsync -a --exclude '__pycache__/' --exclude '*.pyc' "$source_root/cursors/" "$staging/cursors/"
 rsync -a --exclude 'bin/' "$source_root/vendor/" "$staging/vendor/"
 
 (
@@ -141,7 +141,8 @@ plist_temp="$launch_agents/.$label.plist.$$"
 /usr/bin/python3 - "$plist_temp" "$label" "$executable" <<'PY'
 import plistlib, sys
 with open(sys.argv[1], 'wb') as output:
-    plistlib.dump({'Label': sys.argv[2], 'ProgramArguments': [sys.argv[3]],
+    bundle = sys.argv[3].rsplit('/Contents/MacOS/', 1)[0]
+    plistlib.dump({'Label': sys.argv[2], 'ProgramArguments': ['/usr/bin/open', '-gj', bundle],
                   'RunAtLoad': True, 'KeepAlive': False}, output)
 PY
 chmod 600 "$plist_temp"

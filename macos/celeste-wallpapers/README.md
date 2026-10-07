@@ -1,6 +1,6 @@
 # Celeste Wallpapers
 
-A native macOS menu bar toggle between your current wallpaper configuration and a shuffled slideshow from `~/Desktop/Programming+/Celeste-Wallpapers`, changing every 60 seconds. Celeste mode includes original strawberry pixel cursors using a pinned Mousecape helper.
+A native macOS menu bar toggle between your current wallpaper configuration and a shuffled slideshow from `~/Desktop/Programming+/Celeste-Wallpapers`, changing every 5 minutes. Celeste mode uses Cappuccino093’s public-domain [Celeste’s Strawberries cursor pack](https://www.rw-designer.com/cursor-set/celeste), converted with its original pixels, hotspots, and animations using a pinned Mousecape helper.
 
 Left-click toggles. Right-click offers Next Wallpaper, Restore, error details, and Quit and Restore. Wallpaper changes fade for 0.5 seconds; Reduce Motion disables the fade. Background errors never activate the app.
 
@@ -33,6 +33,8 @@ State lives in `~/.config/celeste-wallpapers/state`, independently of the source
 
 Native wallpaper restoration briefly freezes and restarts the current user's WallpaperAgent to restore its saved desktop configuration. This may flicker. No root helper, SIP changes, or system-file edits are required.
 
-Cursor state is captured before application and verified after restoration. Animations above 24 frames (including the native spinning Wait cursor) remain untouched because macOS rejects exact restoration through Mousecape. Only readable prepared cursor roles are changed; unrelated registrations and Mousecape preferences remain untouched. The helper source, license, pinned upstream commit, and local patch are under `vendor/mousecloak/`.
+Cursor state is captured before application and verified after restoration. The native spinning Wait cursor and animations above 24 frames remain untouched because macOS rejects exact restoration through Mousecape. Only readable prepared cursor roles are changed; unrelated registrations and Mousecape preferences remain untouched. The helper source, license, pinned upstream commit, and local patch are under `vendor/mousecloak/`.
 
 Builds retain the previous app in `backups/`. Runtime state, backups, binaries, and personal wallpapers must not be committed.
+
+The menu bar uses an outlined mountain in macOS mode and a filled mountain in Celeste mode. Left-click toggles; right-click opens options. An old spinning-cursor recovery snapshot may remain after upgrading an early build; the menu labels it "Spinning cursor: restart pending". Every other saved cursor must restore exactly before this legacy debt is separated. The full original snapshot is retained, and this debt does not block wallpaper or other cursor toggles. It is cleared only after exact readback matches following a session reset.

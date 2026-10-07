@@ -6,13 +6,15 @@ Upstream source is pinned in `UPSTREAM_COMMIT`.
 - Add read-only `--check-readback` for legacy and macOS 27 cursor names.
 - Add read-only `--prepare <target> --prepared <target-output> --prior
   <recovery-output>`. It includes only target keys with readable current
-  registrations, excludes legacy Arrow/IBeam, requires ArrowS/IBeamS, excludes
-  any target or captured baseline role above Mousecape's reliable 24-frame
-  registration limit, and atomically writes mode-0600 capes with identical key
-  sets. This leaves Apple's 30-frame `com.apple.coregraphics.Wait` unchanged;
-  `CGSRegisterCursorWithImages` returns `CGError 1000` when asked to restore its
-  dumped representation. Independently registered `com.apple.cursor.4` remains
-  eligible when its target and baseline are within the limit.
+  registrations, excludes legacy Arrow/IBeam, requires ArrowS/IBeamS, always
+  excludes `com.apple.coregraphics.Wait`, excludes any other target or captured
+  baseline role above Mousecape's reliable 24-frame registration limit, and
+  atomically writes mode-0600 capes with identical key sets. Wait remains native
+  even when a legacy/custom registration currently reports fewer frames because
+  its Apple 30-frame baseline cannot be round-tripped:
+  `CGSRegisterCursorWithImages` returns `CGError 1000` for that snapshot.
+  Independently registered `com.apple.cursor.4` remains eligible when its target
+  and baseline are within the limit.
 - Add read-only `--verify <cape>` for every included cursor: ordered image
   representations, geometry, hotspots, frame count/duration, dimensions, and
   normalized pixels.

@@ -713,7 +713,8 @@ BOOL prepareSessionCapes(NSString *targetPath, NSString *preparedPath,
     NSMutableDictionary *preparedCursors = [NSMutableDictionary dictionary];
     NSMutableDictionary *priorCursors = [NSMutableDictionary dictionary];
     for (NSString *identifier in [targetCursors.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
-        if ([legacyAliases containsObject:identifier])
+        if ([legacyAliases containsObject:identifier] ||
+            [identifier isEqualToString:@"com.apple.coregraphics.Wait"])
             continue;
         if (!validateCursorDictionary(targetCursors[identifier], identifier, error))
             return NO;

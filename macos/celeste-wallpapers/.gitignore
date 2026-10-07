@@ -4,3 +4,5 @@ backups/
 state/
 vendor/mousecloak/bin/
 screenshots/
+__pycache__/
+*.pyc
