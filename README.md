@@ -1,5 +1,7 @@
 # Dotfiles
 
+macOS: [Celeste Wallpapers](macos/celeste-wallpapers/) provides a menu bar slideshow, strawberry cursors, fades, and a native Focus Filter. Its installer is separate from Linux setup.
+
 Neovim supports [time-based Catppuccin rotation, C++ runners, and a dotfiles updater](docs/neovim-controls.md). The leader key is Space. [Tree-sitter uses the new API](docs/treesitter-main-migration.md), requiring Neovim 0.12+ and Tree-sitter CLI 0.26.1+.
 
 `linux-setup.sh` installs every Linux-supported configuration in this repository on Kali Linux. It installs missing APT packages, a verified JetBrainsMono Nerd Font when a terminal is selected, configuration files, and Neovim plugins.

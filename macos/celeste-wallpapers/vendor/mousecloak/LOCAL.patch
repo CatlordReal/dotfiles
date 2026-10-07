@@ -1,0 +1,831 @@
+diff --git a/src/apply.h b/src/apply.h
+index 04c57e3..d5ab18e 100644
+--- a/src/apply.h
++++ b/src/apply.h
+@@ -22,7 +22,22 @@ extern MCApplyResult applyCapeForIdentifier(NSDictionary *cursor, NSString *iden
+ extern BOOL applyCape(NSDictionary *dictionary);
+ extern BOOL applyCapeReportingIgnored(NSDictionary *dictionary, NSMutableArray *ignoredIdentifiers);
+ extern BOOL applyCapeAtPath(NSString *path);
++/// Applies only explicit keys from a prepared cape without global reset,
++/// WindowServer backup aliases, or Mousecape preference changes.
++extern BOOL applyCapeSessionAtPath(NSString *path, NSString *expectedPriorPath);
++/// Recovery path: validates saved data, registers only saved keys, then verifies
++/// every key. Current registrations may be unreadable.
++extern BOOL restoreCapeSessionAtPath(NSString *path);
++/// Builds matching target and recovery capes from the intersection of target
++/// keys and currently readable cursor registrations. No cursor is changed.
++extern BOOL prepareSessionCapes(NSString *targetPath, NSString *preparedPath,
++                                NSString *priorPath, NSError **error);
+ extern BOOL applyCapeAtPathReportingIgnored(NSString *path, NSMutableArray *ignoredIdentifiers);
+ extern void probeCursorOverrides(void);
++/// Read-only runtime check: confirms cursor images can be read under the names
++/// macOS 27 uses. Never registers, removes, or persists a cursor.
++extern BOOL checkCursorReadback(void);
++/// Read-only exact comparison of every registration in a prepared cape.
++extern BOOL verifyCapeAtPath(NSString *path);
+ 
+ #endif
+diff --git a/src/apply.m b/src/apply.m
+index ec37154..f28bd01 100644
+--- a/src/apply.m
++++ b/src/apply.m
+@@ -13,6 +13,9 @@
+ #import "MCPrefs.h"
+ #import "NSBitmapImageRep+ColorSpace.h"
+ 
++static BOOL validateCursorDictionary(NSDictionary *cursor, NSString *identifier, NSError **error);
++static BOOL verifyCursorDictionary(NSDictionary *cursor, NSString *identifier);
++
+ static BOOL cursorGeometryMatches(CGSize a, CGPoint aHotSpot, NSUInteger aFrames, CGSize b, CGPoint bHotSpot, NSUInteger bFrames) {
+     return fabs(a.width - b.width) < 0.5 && fabs(a.height - b.height) < 0.5 &&
+         fabs(aHotSpot.x - bHotSpot.x) < 0.5 && fabs(aHotSpot.y - bHotSpot.y) < 0.5 &&
+@@ -37,8 +40,8 @@ static MCApplyResult verifyRegisteredCursor(char *identifier, CGSize size, CGPoi
+ }
+ 
+ MCApplyResult applyCursorForIdentifier(NSUInteger frameCount, CGFloat frameDuration, CGPoint hotSpot, CGSize size, NSArray *images, NSString *ident, NSUInteger repeatCount) {
+-    if (frameCount > 24 || frameCount < 1) {
+-        MMLog(BOLD RED "Frame count of %s out of range [1...24]", ident.UTF8String);
++    if (frameCount > 256 || frameCount < 1) {
++        MMLog(BOLD RED "Frame count of %s out of range [1...256]", ident.UTF8String);
+         return MCApplyResultFailed;
+     }
+ 
+@@ -56,8 +59,11 @@ MCApplyResult applyCursorForIdentifier(NSUInteger frameCount, CGFloat frameDurat
+                                               (__bridge CFArrayRef)images,
+                                               &seed);
+     
+-    if (err != kCGErrorSuccess)
++    if (err != kCGErrorSuccess) {
++        MMLog(BOLD RED "CGSRegisterCursorWithImages failed for %s: CGError %d" RESET,
++              ident.UTF8String, err);
+         return MCApplyResultFailed;
++    }
+ 
+     // A success code no longer means the cursor changed, so check what the WindowServer holds
+     return verifyRegisteredCursor(idenfifier, size, hotSpot, frameCount);
+@@ -140,13 +146,16 @@ MCApplyResult applyCapeForIdentifier(NSDictionary *cursor, NSString *identifier,
+ }
+ 
+ // ignoredIdentifiers, if given, receives the cursors the system kept its own images for
+-BOOL applyCapeReportingIgnored(NSDictionary *dictionary, NSMutableArray *ignoredIdentifiers) {
++static BOOL applyCapeReportingIgnoredInternal(NSDictionary *dictionary, NSMutableArray *ignoredIdentifiers, BOOL persistPreference) {
+     @autoreleasepool {
+         NSDictionary *cursors = dictionary[MCCursorDictionaryCursorsKey];
+         NSString *name = dictionary[MCCursorDictionaryCapeNameKey];
+         NSNumber *version = dictionary[MCCursorDictionaryCapeVersionKey];
+         
+-        resetAllCursors();
++        if (persistPreference)
++            resetAllCursors();
++        else
++            resetAllCursorsWithoutPreferenceChanges();
+         backupAllCursors();
+         
+         MMLog("Applying cape: %s %.02f", name.UTF8String, version.floatValue);
+@@ -184,7 +193,8 @@ BOOL applyCapeReportingIgnored(NSDictionary *dictionary, NSMutableArray *ignored
+             }
+         }
+         
+-        MCSetDefault(dictionary[MCCursorDictionaryIdentifierKey], MCPreferencesAppliedCursorKey);
++        if (persistPreference)
++            MCSetDefault(dictionary[MCCursorDictionaryIdentifierKey], MCPreferencesAppliedCursorKey);
+         
+         if (ignored.count == 0) {
+             MMLog(BOLD GREEN "Applied %s successfully!" RESET, name.UTF8String);
+@@ -199,6 +209,10 @@ BOOL applyCapeReportingIgnored(NSDictionary *dictionary, NSMutableArray *ignored
+     }
+ }
+ 
++BOOL applyCapeReportingIgnored(NSDictionary *dictionary, NSMutableArray *ignoredIdentifiers) {
++    return applyCapeReportingIgnoredInternal(dictionary, ignoredIdentifiers, YES);
++}
++
+ BOOL applyCape(NSDictionary *dictionary) {
+     return applyCapeReportingIgnored(dictionary, nil);
+ }
+@@ -215,6 +229,98 @@ BOOL applyCapeAtPath(NSString *path) {
+     return applyCapeAtPathReportingIgnored(path, nil);
+ }
+ 
++static NSDictionary *validatedPreparedCursorsAtPath(NSString *path, NSError **error) {
++    NSDictionary *cape = [NSDictionary dictionaryWithContentsOfFile:path];
++    NSDictionary *cursors = cape[MCCursorDictionaryCursorsKey];
++    if (![cursors isKindOfClass:[NSDictionary class]] ||
++        !cursors[@"com.apple.coregraphics.ArrowS"] ||
++        !cursors[@"com.apple.coregraphics.IBeamS"]) {
++        if (error)
++            *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                     userInfo:@{NSLocalizedDescriptionKey:
++                                                    @"Prepared cape is invalid or lacks ArrowS/IBeamS."}];
++        return nil;
++    }
++    if (cursors.count > 128) {
++        if (error)
++            *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                     userInfo:@{NSLocalizedDescriptionKey:@"Prepared cape contains too many cursors."}];
++        return nil;
++    }
++    NSArray *keys = [cursors.allKeys sortedArrayUsingSelector:@selector(compare:)];
++    for (NSString *identifier in keys) {
++        if (![identifier isKindOfClass:[NSString class]] || identifier.length == 0 || identifier.length > 160 ||
++            !validateCursorDictionary(cursors[identifier], identifier, error))
++            return nil;
++    }
++    return cursors;
++}
++
++static BOOL registerPreparedCursors(NSDictionary *cursors, BOOL continueAfterFailure) {
++    BOOL success = YES;
++    for (NSString *identifier in [cursors.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
++        // Prepared capes are exact images; do not apply Mousecape handedness preferences.
++        MCApplyResult result = applyCapeForIdentifier(cursors[identifier], identifier, YES);
++        if (result != MCApplyResultApplied) {
++            MMLog(BOLD RED "Cursor %s was not applied; recovery is required" RESET, identifier.UTF8String);
++            success = NO;
++            if (!continueAfterFailure)
++                return NO;
++        }
++    }
++    return success;
++}
++
++BOOL applyCapeSessionAtPath(NSString *path, NSString *expectedPriorPath) {
++    NSError *error = nil;
++    NSDictionary *cursors = validatedPreparedCursorsAtPath(path, &error);
++    NSDictionary *priorCursors = validatedPreparedCursorsAtPath(expectedPriorPath, &error);
++    if (!cursors || !priorCursors ||
++        ![[NSSet setWithArray:cursors.allKeys] isEqualToSet:[NSSet setWithArray:priorCursors.allKeys]]) {
++        MMLog(BOLD RED "%s" RESET, (error.localizedDescription ?: @"Target and expected prior key sets differ.").UTF8String);
++        return NO;
++    }
++
++    for (NSString *identifier in [cursors.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
++        NSDictionary *current = capeWithIdentifier(identifier);
++        if (!current || !validateCursorDictionary(current, identifier, &error)) {
++            MMLog(BOLD RED "Current cursor %s is not readable; nothing changed" RESET, identifier.UTF8String);
++            return NO;
++        }
++    }
++
++    // Deliberately make the exact expected-state check the final operation
++    // before the first target registration.
++    if (!verifyCapeAtPath(expectedPriorPath)) {
++        MMLog(BOLD RED "Current cursor state no longer matches expected prior cape; nothing changed" RESET);
++        return NO;
++    }
++    return registerPreparedCursors(cursors, NO) && verifyCapeAtPath(path);
++}
++
++BOOL restoreCapeSessionAtPath(NSString *path) {
++    NSError *error = nil;
++    NSDictionary *cursors = validatedPreparedCursorsAtPath(path, &error);
++    if (!cursors) {
++        MMLog(BOLD RED "%s" RESET, error.localizedDescription.UTF8String);
++        return NO;
++    }
++    // After logout/login, WindowServer may already have restored every native
++    // cursor. Accept that exact state without re-registering animations that
++    // Mousecape cannot round-trip, such as Apple's 30-frame Wait cursor.
++    if (verifyCapeAtPath(path)) {
++        MMLog(BOLD GREEN "Saved cursor state is already restored; no registration needed" RESET);
++        return YES;
++    }
++    // Recovery is best effort across the complete saved key set. One rejected
++    // cursor must not prevent later roles from being restored.
++    registerPreparedCursors(cursors, YES);
++    BOOL verified = verifyCapeAtPath(path);
++    // Final exact state is authoritative. A registration may be refused while
++    // that role already matches natively (notably the 30-frame Wait cursor).
++    return verified;
++}
++
+ static CGImageRef createProbeImage(size_t pixels) {
+     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+     CGContextRef ctx = CGBitmapContextCreate(NULL, pixels, pixels, 8, 4 * pixels, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+@@ -302,3 +408,355 @@ void probeCursorOverrides(void) {
+             MMLog(BOLD "%lu built-in cursor(s) cannot be replaced on this system." RESET, (unsigned long)blockedCount);
+     }
+ }
++
++BOOL checkCursorReadback(void) {
++    @autoreleasepool {
++        NSArray *keys = @[ @"com.apple.coregraphics.Arrow",
++                           @"com.apple.coregraphics.ArrowS",
++                           @"com.apple.coregraphics.IBeam",
++                           @"com.apple.coregraphics.IBeamS" ];
++        BOOL ok = YES;
++
++        MMLog(BOLD "Checking macOS cursor readback without changing cursors..." RESET);
++        for (NSString *key in keys) {
++            CGSize size = CGSizeZero;
++            CGPoint hotSpot = CGPointZero;
++            NSUInteger frameCount = 0;
++            CGFloat frameDuration = 0;
++            CFArrayRef images = NULL;
++            CGError error = CGSCopyRegisteredCursorImages(CGSMainConnectionID(),
++                                                          (char *)key.UTF8String,
++                                                          &size,
++                                                          &hotSpot,
++                                                          &frameCount,
++                                                          &frameDuration,
++                                                          &images);
++            CFIndex imageCount = images ? CFArrayGetCount(images) : 0;
++            if (error == kCGErrorSuccess && imageCount > 0 && frameCount > 0) {
++                MMLog("  %-10s readable: %lux%lu, %lu frame(s), hotspot %.1f,%.1f",
++                      key.pathExtension.UTF8String,
++                      (unsigned long)size.width, (unsigned long)size.height,
++                      (unsigned long)frameCount, hotSpot.x, hotSpot.y);
++            } else {
++                MMLog(BOLD RED "  %s unavailable: CGError %d, %ld image(s), %lu frame(s)" RESET,
++                      key.pathExtension.UTF8String, error, (long)imageCount,
++                      (unsigned long)frameCount);
++                ok = NO;
++            }
++            if (images)
++                CFRelease(images);
++        }
++        return ok;
++    }
++}
++
++static NSData *normalizedPixels(CGImageRef image) {
++    size_t width = CGImageGetWidth(image);
++    size_t height = CGImageGetHeight(image);
++    NSMutableData *data = [NSMutableData dataWithLength:width * height * 4];
++    CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
++    CGContextRef context = CGBitmapContextCreate(data.mutableBytes, width, height, 8, width * 4,
++                                                 colorSpace, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
++    CGColorSpaceRelease(colorSpace);
++    if (!context)
++        return nil;
++    CGContextSetBlendMode(context, kCGBlendModeCopy);
++    CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
++    CGContextRelease(context);
++    return data;
++}
++
++static BOOL cursorImagesMatch(NSArray *expected, CFArrayRef actual) {
++    if (!actual || expected.count != (NSUInteger)CFArrayGetCount(actual))
++        return NO;
++
++    for (NSUInteger index = 0; index < expected.count; index++) {
++        id object = expected[index];
++        NSBitmapImageRep *representation = nil;
++        if (CFGetTypeID((__bridge CFTypeRef)object) == CGImageGetTypeID())
++            representation = [[[NSBitmapImageRep alloc] initWithCGImage:(__bridge CGImageRef)object] autorelease];
++        else
++            representation = [[[NSBitmapImageRep alloc] initWithData:object] autorelease];
++        CGImageRef expectedImage = representation.CGImage;
++        if (!expectedImage)
++            return NO;
++
++        CGImageRef actualImage = (CGImageRef)CFArrayGetValueAtIndex(actual, index);
++        if (CGImageGetWidth(expectedImage) != CGImageGetWidth(actualImage) ||
++            CGImageGetHeight(expectedImage) != CGImageGetHeight(actualImage) ||
++            ![normalizedPixels(expectedImage) isEqualToData:normalizedPixels(actualImage)])
++            return NO;
++    }
++    return YES;
++}
++
++static BOOL validateCursorDictionary(NSDictionary *cursor, NSString *identifier, NSError **error) {
++    NSArray *required = @[ MCCursorDictionaryFrameCountKey, MCCursorDictionaryFrameDuratiomKey,
++                           MCCursorDictionaryHotSpotXKey, MCCursorDictionaryHotSpotYKey,
++                           MCCursorDictionaryPointsWideKey, MCCursorDictionaryPointsHighKey,
++                           MCCursorDictionaryRepresentationsKey ];
++    for (NSString *key in required) {
++        if (!cursor[key]) {
++            if (error)
++                *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                         userInfo:@{NSLocalizedDescriptionKey:
++                                                        [NSString stringWithFormat:@"Cursor %@ lacks %@.", identifier, key]}];
++            return NO;
++        }
++    }
++    NSNumber *frameNumber = cursor[MCCursorDictionaryFrameCountKey];
++    NSNumber *durationNumber = cursor[MCCursorDictionaryFrameDuratiomKey];
++    NSNumber *widthNumber = cursor[MCCursorDictionaryPointsWideKey];
++    NSNumber *heightNumber = cursor[MCCursorDictionaryPointsHighKey];
++    NSNumber *hotXNumber = cursor[MCCursorDictionaryHotSpotXKey];
++    NSNumber *hotYNumber = cursor[MCCursorDictionaryHotSpotYKey];
++    NSArray *numbers = @[ frameNumber, durationNumber, widthNumber, heightNumber, hotXNumber, hotYNumber ];
++    for (id number in numbers) {
++        if (![number isKindOfClass:[NSNumber class]] || !isfinite([number doubleValue])) {
++            if (error)
++                *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                         userInfo:@{NSLocalizedDescriptionKey:
++                                                        [NSString stringWithFormat:@"Cursor %@ has a non-finite numeric field.", identifier]}];
++            return NO;
++        }
++    }
++    double frameValue = frameNumber.doubleValue;
++    NSUInteger frameCount = frameNumber.unsignedIntegerValue;
++    CGFloat frameDuration = durationNumber.doubleValue;
++    CGFloat width = widthNumber.doubleValue;
++    CGFloat height = heightNumber.doubleValue;
++    CGFloat hotX = hotXNumber.doubleValue;
++    CGFloat hotY = hotYNumber.doubleValue;
++    NSArray *representations = cursor[MCCursorDictionaryRepresentationsKey];
++    if (frameValue != floor(frameValue) || frameCount < 1 || frameCount > 256 ||
++        frameDuration < 0 || width <= 0 || height <= 0 || width > 512 || height > 512 ||
++        hotX < 0 || hotY < 0 || hotX >= width || hotY >= height ||
++        ![representations isKindOfClass:[NSArray class]] ||
++        representations.count == 0 || representations.count > 8) {
++        if (error)
++            *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                     userInfo:@{NSLocalizedDescriptionKey:
++                                                    [NSString stringWithFormat:@"Cursor %@ has invalid geometry or representations.", identifier]}];
++        return NO;
++    }
++    NSUInteger totalEncodedBytes = 0;
++    for (id object in representations) {
++        NSBitmapImageRep *representation = nil;
++        if (CFGetTypeID((__bridge CFTypeRef)object) == CGImageGetTypeID())
++            representation = [[[NSBitmapImageRep alloc] initWithCGImage:(__bridge CGImageRef)object] autorelease];
++        else if ([object isKindOfClass:[NSData class]])
++            representation = [[[NSBitmapImageRep alloc] initWithData:object] autorelease];
++        if ([object isKindOfClass:[NSData class]]) {
++            if ([(NSData *)object length] > 32 * 1024 * 1024 ||
++                totalEncodedBytes > 64 * 1024 * 1024 - [(NSData *)object length]) {
++                if (error)
++                    *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                             userInfo:@{NSLocalizedDescriptionKey:
++                                                            [NSString stringWithFormat:@"Cursor %@ image data exceeds safety limits.", identifier]}];
++                return NO;
++            }
++            totalEncodedBytes += [(NSData *)object length];
++        }
++        CGImageRef image = representation.CGImage;
++        size_t pixelsWide = image ? CGImageGetWidth(image) : 0;
++        size_t pixelsHigh = image ? CGImageGetHeight(image) : 0;
++        if (!image || pixelsWide == 0 || pixelsHigh == 0 ||
++            pixelsWide > 8192 || pixelsHigh > 8192 ||
++            pixelsWide > (64 * 1024 * 1024) / pixelsHigh ||
++            pixelsHigh % frameCount != 0) {
++            if (error)
++                *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                         userInfo:@{NSLocalizedDescriptionKey:
++                                                        [NSString stringWithFormat:@"Cursor %@ contains unreadable image data.", identifier]}];
++            return NO;
++        }
++        // Each representation is one resolution. Animated frames are stacked
++        // vertically inside that representation; representation count is
++        // independent of frame count.
++        CGFloat scaleX = pixelsWide / width;
++        CGFloat scaleY = (pixelsHigh / frameCount) / height;
++        if (!isfinite(scaleX) || !isfinite(scaleY) || scaleX < 0.25 || scaleX > 16 ||
++            fabs(scaleX - scaleY) > 0.01) {
++            if (error)
++                *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                         userInfo:@{NSLocalizedDescriptionKey:
++                                                        [NSString stringWithFormat:@"Cursor %@ representation does not match frame geometry.", identifier]}];
++            return NO;
++        }
++    }
++    return YES;
++}
++
++static BOOL verifyCursorDictionary(NSDictionary *cursor, NSString *identifier) {
++    CGSize size = CGSizeZero;
++    CGPoint hotSpot = CGPointZero;
++    NSUInteger frameCount = 0;
++    CGFloat frameDuration = 0;
++    CFArrayRef images = NULL;
++    CGError error = CGSCopyRegisteredCursorImages(CGSMainConnectionID(),
++                                                  (char *)identifier.UTF8String,
++                                                  &size, &hotSpot, &frameCount,
++                                                  &frameDuration, &images);
++    BOOL geometryMatches = error == kCGErrorSuccess &&
++        cursorGeometryMatches(size, hotSpot, frameCount,
++                              CGSizeMake([cursor[MCCursorDictionaryPointsWideKey] doubleValue],
++                                         [cursor[MCCursorDictionaryPointsHighKey] doubleValue]),
++                              CGPointMake([cursor[MCCursorDictionaryHotSpotXKey] doubleValue],
++                                          [cursor[MCCursorDictionaryHotSpotYKey] doubleValue]),
++                              [cursor[MCCursorDictionaryFrameCountKey] unsignedIntegerValue]) &&
++        fabs(frameDuration - [cursor[MCCursorDictionaryFrameDuratiomKey] doubleValue]) < 0.0001;
++    BOOL imagesMatch = geometryMatches && cursorImagesMatch(cursor[MCCursorDictionaryRepresentationsKey], images);
++    if (images)
++        CFRelease(images);
++    MMLog("  %-10s %s", identifier.pathExtension.UTF8String,
++          imagesMatch ? GREEN "matches" RESET : RED "does not match" RESET);
++    return imagesMatch;
++}
++
++BOOL verifyCapeAtPath(NSString *path) {
++    NSDictionary *cape = [NSDictionary dictionaryWithContentsOfFile:path];
++    NSDictionary *cursors = cape[MCCursorDictionaryCursorsKey];
++    if (![cursors isKindOfClass:[NSDictionary class]] || cursors.count == 0 || cursors.count > 128) {
++        MMLog(BOLD RED "Invalid cape at %s" RESET, path.UTF8String);
++        return NO;
++    }
++
++    if (!cursors[@"com.apple.coregraphics.ArrowS"] || !cursors[@"com.apple.coregraphics.IBeamS"]) {
++        MMLog(BOLD RED "Cape lacks effective ArrowS or IBeamS cursor data" RESET);
++        return NO;
++    }
++
++    MMLog(BOLD "Verifying every cursor in prepared cape..." RESET);
++    BOOL success = YES;
++    for (NSString *identifier in [cursors.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
++        NSError *error = nil;
++        if (!validateCursorDictionary(cursors[identifier], identifier, &error) ||
++            !verifyCursorDictionary(cursors[identifier], identifier))
++            success = NO;
++    }
++    return success;
++}
++
++static NSData *capeDataWithCursors(NSDictionary *template, NSDictionary *cursors,
++                                   NSString *name, NSString *identifier, NSError **error) {
++    NSMutableDictionary *cape = template ? [[template mutableCopy] autorelease] : [NSMutableDictionary dictionary];
++    cape[MCCursorDictionaryAuthorKey] = cape[MCCursorDictionaryAuthorKey] ?: @"Local cursor recovery";
++    cape[MCCursorDictionaryCapeNameKey] = name;
++    cape[MCCursorDictionaryCapeVersionKey] = @1.0;
++    cape[MCCursorDictionaryCloudKey] = @NO;
++    cape[MCCursorDictionaryCursorsKey] = cursors;
++    cape[MCCursorDictionaryHiDPIKey] = @YES;
++    cape[MCCursorDictionaryIdentifierKey] = identifier;
++    cape[MCCursorDictionaryVersionKey] = @(MCCursorCreatorVersion);
++    cape[MCCursorDictionaryMinimumVersionKey] = @(MCCursorParserVersion);
++    return [NSPropertyListSerialization dataWithPropertyList:cape
++                                                      format:NSPropertyListBinaryFormat_v1_0
++                                                     options:0 error:error];
++}
++
++static BOOL installPreparedFiles(NSData *preparedData, NSString *preparedPath,
++                                 NSData *priorData, NSString *priorPath, NSError **error) {
++    NSFileManager *manager = [NSFileManager defaultManager];
++    if ([manager fileExistsAtPath:preparedPath] || [manager fileExistsAtPath:priorPath]) {
++        if (error)
++            *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorWriteFailCode
++                                     userInfo:@{NSLocalizedDescriptionKey:
++                                                    @"Prepared or prior cape already exists; refusing to overwrite recovery state."}];
++        return NO;
++    }
++    NSString *token = UUID();
++    NSString *preparedTemp = [[preparedPath stringByDeletingLastPathComponent]
++        stringByAppendingPathComponent:[NSString stringWithFormat:@".prepared-%@.tmp", token]];
++    NSString *priorTemp = [[priorPath stringByDeletingLastPathComponent]
++        stringByAppendingPathComponent:[NSString stringWithFormat:@".prior-%@.tmp", token]];
++    BOOL preparedInstalled = NO;
++    @try {
++        if (![preparedData writeToFile:preparedTemp options:NSDataWritingAtomic error:error] ||
++            ![priorData writeToFile:priorTemp options:NSDataWritingAtomic error:error] ||
++            ![manager setAttributes:@{NSFilePosixPermissions: @0600} ofItemAtPath:preparedTemp error:error] ||
++            ![manager setAttributes:@{NSFilePosixPermissions: @0600} ofItemAtPath:priorTemp error:error] ||
++            ![manager moveItemAtPath:preparedTemp toPath:preparedPath error:error])
++            return NO;
++        preparedInstalled = YES;
++        if (![manager moveItemAtPath:priorTemp toPath:priorPath error:error]) {
++            [manager removeItemAtPath:preparedPath error:nil];
++            preparedInstalled = NO;
++            return NO;
++        }
++        return YES;
++    } @finally {
++        if ([manager fileExistsAtPath:preparedTemp])
++            [manager removeItemAtPath:preparedTemp error:nil];
++        if ([manager fileExistsAtPath:priorTemp])
++            [manager removeItemAtPath:priorTemp error:nil];
++        if (preparedInstalled && ![manager fileExistsAtPath:priorPath])
++            [manager removeItemAtPath:preparedPath error:nil];
++    }
++}
++
++BOOL prepareSessionCapes(NSString *targetPath, NSString *preparedPath,
++                         NSString *priorPath, NSError **error) {
++    NSDictionary *target = [NSDictionary dictionaryWithContentsOfFile:targetPath];
++    NSDictionary *targetCursors = target[MCCursorDictionaryCursorsKey];
++    if (![targetCursors isKindOfClass:[NSDictionary class]] ||
++        !targetCursors[@"com.apple.coregraphics.ArrowS"] ||
++        !targetCursors[@"com.apple.coregraphics.IBeamS"]) {
++        if (error)
++            *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                     userInfo:@{NSLocalizedDescriptionKey:
++                                                    @"Target cape must contain ArrowS and IBeamS."}];
++        return NO;
++    }
++
++    NSSet *legacyAliases = [NSSet setWithArray:@[ @"com.apple.coregraphics.Arrow",
++                                                  @"com.apple.coregraphics.IBeam" ]];
++    NSMutableDictionary *preparedCursors = [NSMutableDictionary dictionary];
++    NSMutableDictionary *priorCursors = [NSMutableDictionary dictionary];
++    for (NSString *identifier in [targetCursors.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
++        if ([legacyAliases containsObject:identifier])
++            continue;
++        if (!validateCursorDictionary(targetCursors[identifier], identifier, error))
++            return NO;
++        NSDictionary *current = processedCapeWithIdentifier(identifier);
++        if (!current)
++            continue;
++        if (!validateCursorDictionary(current, identifier, error))
++            return NO;
++        NSUInteger targetFrameCount = [targetCursors[identifier][MCCursorDictionaryFrameCountKey] unsignedIntegerValue];
++        NSUInteger priorFrameCount = [current[MCCursorDictionaryFrameCountKey] unsignedIntegerValue];
++        if (targetFrameCount > 24 || priorFrameCount > 24) {
++            MMLog(YELLOW "Skipping %s: Mousecape cannot reliably register more than 24 frames" RESET,
++                  identifier.UTF8String);
++            continue;
++        }
++        preparedCursors[identifier] = targetCursors[identifier];
++        priorCursors[identifier] = current;
++    }
++
++    if (!preparedCursors[@"com.apple.coregraphics.ArrowS"] ||
++        !preparedCursors[@"com.apple.coregraphics.IBeamS"] ||
++        ![[NSSet setWithArray:preparedCursors.allKeys] isEqualToSet:[NSSet setWithArray:priorCursors.allKeys]]) {
++        if (error)
++            *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                     userInfo:@{NSLocalizedDescriptionKey:
++                                                    @"Readable ArrowS/IBeamS and an exact recovery key set are required."}];
++        return NO;
++    }
++
++    NSData *preparedData = capeDataWithCursors(target, preparedCursors,
++                                               @"Celeste Pixel Prepared",
++                                               @"com.kianconti.celeste-pixel.prepared", error);
++    NSData *priorData = capeDataWithCursors(nil, priorCursors,
++                                            @"Pre-Celeste Cursor Snapshot",
++                                            @"com.kianconti.celeste-pixel.prior", error);
++    if (!preparedData || !priorData)
++        return NO;
++
++    NSDictionary *preparedCheck = [NSPropertyListSerialization propertyListWithData:preparedData options:0 format:NULL error:error];
++    NSDictionary *priorCheck = [NSPropertyListSerialization propertyListWithData:priorData options:0 format:NULL error:error];
++    NSSet *preparedKeys = [NSSet setWithArray:[preparedCheck[MCCursorDictionaryCursorsKey] allKeys]];
++    NSSet *priorKeys = [NSSet setWithArray:[priorCheck[MCCursorDictionaryCursorsKey] allKeys]];
++    if (!preparedCheck || !priorCheck || ![preparedKeys isEqualToSet:priorKeys])
++        return NO;
++    return installPreparedFiles(preparedData, preparedPath, priorData, priorPath, error);
++}
+diff --git a/src/create.h b/src/create.h
+index fa9b4dd..acc9162 100644
+--- a/src/create.h
++++ b/src/create.h
+@@ -12,6 +12,9 @@ extern NSError *createCape(NSString *input, NSString *output, BOOL convert);
+ 
+ extern NSDictionary *processedCapeWithIdentifier(NSString *identifier);
+ extern BOOL dumpCursorsToFile(NSString *path, BOOL (^progress)(NSUInteger current, NSUInteger total));
++/// Captures registered cursors through copy APIs only. Does not hide, resize,
++/// select, register, or remove cursors. Writes an atomic binary plist, mode 0600.
++extern BOOL dumpCursorsSafelyToFile(NSString *path, NSError **error);
+ extern BOOL dumpCursorsToFolder(NSString *path, BOOL (^progress)(NSUInteger current, NSUInteger total));
+ 
+ extern NSDictionary *createCapeFromDirectory(NSString *path);
+diff --git a/src/create.m b/src/create.m
+index 75e935e..c6201ea 100644
+--- a/src/create.m
++++ b/src/create.m
+@@ -325,6 +325,60 @@ BOOL dumpCursorsToFile(NSString *path, BOOL (^progress)(NSUInteger current, NSUI
+     return [cape writeToFile:path atomically:NO];
+ }
+ 
++BOOL dumpCursorsSafelyToFile(NSString *path, NSError **error) {
++    NSMutableDictionary *cursors = [NSMutableDictionary dictionary];
++    NSMutableArray *identifiers = [NSMutableArray array];
++
++    NSUInteger i = 0;
++    NSString *key = nil;
++    while ((key = defaultCursors[i++]) != nil)
++        [identifiers addObject:key];
++    [identifiers addObjectsFromArray:cursorAliases().allValues];
++    for (int index = 0; index < 45; index++)
++        [identifiers addObject:[NSString stringWithFormat:@"com.apple.cursor.%d", index]];
++
++    for (NSString *identifier in identifiers) {
++        NSDictionary *cursor = processedCapeWithIdentifier(identifier);
++        if (cursor)
++            cursors[identifier] = cursor;
++    }
++
++    if (!cursors[@"com.apple.coregraphics.ArrowS"] ||
++        !cursors[@"com.apple.coregraphics.IBeamS"]) {
++        if (error)
++            *error = [NSError errorWithDomain:MCErrorDomain code:MCErrorInvalidFormatCode
++                                     userInfo:@{NSLocalizedDescriptionKey:
++                                                    @"macOS 27 ArrowS/IBeamS cursors could not be captured."}];
++        return NO;
++    }
++
++    NSDictionary *cape = @{
++        MCCursorDictionaryAuthorKey: @"Local recovery snapshot",
++        MCCursorDictionaryCapeNameKey: @"Pre-Celeste Cursor Snapshot",
++        MCCursorDictionaryCapeVersionKey: @1.0,
++        MCCursorDictionaryCloudKey: @NO,
++        MCCursorDictionaryCursorsKey: cursors,
++        MCCursorDictionaryHiDPIKey: @YES,
++        MCCursorDictionaryIdentifierKey: @"com.kianconti.celeste.cursor-snapshot",
++        MCCursorDictionaryVersionKey: @(MCCursorCreatorVersion),
++        MCCursorDictionaryMinimumVersionKey: @(MCCursorParserVersion)
++    };
++    NSData *data = [NSPropertyListSerialization dataWithPropertyList:cape
++                                                               format:NSPropertyListBinaryFormat_v1_0
++                                                              options:0 error:error];
++    if (!data || ![data writeToFile:path options:NSDataWritingAtomic error:error])
++        return NO;
++    if (![[NSFileManager defaultManager] setAttributes:@{NSFilePosixPermissions: @0600}
++                                           ofItemAtPath:path error:error])
++        return NO;
++
++    NSData *written = [NSData dataWithContentsOfFile:path options:0 error:error];
++    NSDictionary *parsed = written ? [NSPropertyListSerialization propertyListWithData:written options:0 format:NULL error:error] : nil;
++    return [parsed[MCCursorDictionaryCursorsKey] isKindOfClass:[NSDictionary class]] &&
++           parsed[MCCursorDictionaryCursorsKey][@"com.apple.coregraphics.ArrowS"] &&
++           parsed[MCCursorDictionaryCursorsKey][@"com.apple.coregraphics.IBeamS"];
++}
++
+ BOOL dumpCursorsToFolder(NSString *path, BOOL (^progress)(NSUInteger current, NSUInteger total)) {
+     [[NSFileManager defaultManager] createDirectoryAtPath:path withIntermediateDirectories:YES attributes:nil error:nil];
+     
+diff --git a/src/main.m b/src/main.m
+index 879dfe5..2023a24 100644
+--- a/src/main.m
++++ b/src/main.m
+@@ -29,6 +29,12 @@ int main(int argc, char * argv[]) {
+         [options registerSeparator:@(BOLD "APPLYING CAPES" RESET)];
+         [options registerOption:'a' long:@"apply" description:@"Apply a cape" flags:GBValueRequired];
+         [options registerOption:'r' long:@"reset" description:@"Reset to the default OSX cursors" flags:GBValueNone];
++        [options registerOption:0 long:@"apply-session" description:@"Apply prepared cape only if current state matches --expect" flags:GBValueRequired];
++        [options registerOption:0 long:@"expect" description:@"Expected current prior cape paired with --apply-session" flags:GBValueRequired];
++        [options registerOption:0 long:@"restore-session" description:@"Restore explicit saved keys without global reset" flags:GBValueRequired];
++        [options registerOption:0 long:@"prepare" description:@"Read-only prepare target and exact prior capes" flags:GBValueRequired];
++        [options registerOption:0 long:@"prepared" description:@"Output path paired with --prepare" flags:GBValueRequired];
++        [options registerOption:0 long:@"prior" description:@"Recovery output path paired with --prepare" flags:GBValueRequired];
+         [options registerSeparator:@(BOLD "CREATING CAPES" RESET)];
+         [options registerOption:'c' long:@"create"
+                     description:
+@@ -54,11 +60,14 @@ int main(int argc, char * argv[]) {
+          "\t\t    └── 3.png\n"
+                           flags:GBValueRequired];
+         [options registerOption:'d' long:@"dump" description:@"Dumps the currently applied cursors to a file." flags:GBValueRequired];
++        [options registerOption:0 long:@"dump-safe" description:@"Atomically snapshot cursors without changing cursor state" flags:GBValueRequired];
+         [options registerSeparator:@(BOLD "CONVERTING MIGHTYMOUSE TO CAPE" RESET)];
+         [options registerOption:'x' long:@"convert" description:@"Convert a .MightyMouse file to cape. Default output is to a new file of the same name" flags:GBValueRequired];
+         [options registerSeparator:@(BOLD "MISCELLANEOUS" RESET)];
+         [options registerOption:'e' long:@"export" description:@"Export a cape to a directory" flags:GBValueRequired];
+         [options registerOption:'p' long:@"probe" description:@"Check which built-in cursors this version of macOS lets Mousecape replace" flags:GBValueNone];
++        [options registerOption:0 long:@"check-readback" description:@"Read-only check for macOS 27 ArrowS/IBeamS cursor access" flags:GBValueNone];
++        [options registerOption:0 long:@"verify" description:@"Read-only compare every cursor with a prepared cape" flags:GBValueRequired];
+         [options registerOption:'?' long:@"help" description:@"Display this help and exit" flags:GBValueNone];
+         [options registerOption:'o' long:@"output" description:@"Use this option to tell where an output file goes. (For convert, create, and export)" flags:GBValueRequired];
+         [options registerOption:0 long:@"suppressCopyright" description:@"Suppress Copyright info" flags:GBValueNone | GBOptionNoHelp | GBOptionNoPrint];
+@@ -102,31 +111,43 @@ int main(int argc, char * argv[]) {
+         
+         if ([settings boolForKey:@"reset"]) {
+             // reset to default cursors
+-            resetAllCursors();
++            BOOL success = resetAllCursors();
+             
+             if (!suppressCopyright)
+                 [options replacePlaceholdersAndPrintStringFromBlock:options.printHelpFooter];
+-            return EXIT_SUCCESS;
++            return success ? EXIT_SUCCESS : EXIT_FAILURE;
+         }
+         
+         BOOL convert = [settings isKeyPresentAtThisLevel:@"convert"];
+         BOOL apply   = [settings isKeyPresentAtThisLevel:@"apply"];
++        BOOL applySession = [settings isKeyPresentAtThisLevel:@"apply-session"];
++        BOOL restoreSession = [settings isKeyPresentAtThisLevel:@"restore-session"];
++        BOOL prepare = [settings isKeyPresentAtThisLevel:@"prepare"];
+         BOOL create  = [settings isKeyPresentAtThisLevel:@"create"];
+         BOOL dump    = [settings isKeyPresentAtThisLevel:@"dump"];
++        BOOL dumpSafe = [settings isKeyPresentAtThisLevel:@"dump-safe"];
+         BOOL scale   = [settings isKeyPresentAtThisLevel:@"scale"];
+         BOOL listen  = [settings isKeyPresentAtThisLevel:@"listen"];
+         BOOL export  = [settings isKeyPresentAtThisLevel:@"export"];
+         BOOL probe   = [settings isKeyPresentAtThisLevel:@"probe"];
++        BOOL checkReadback = [settings isKeyPresentAtThisLevel:@"check-readback"];
++        BOOL verify = [settings isKeyPresentAtThisLevel:@"verify"];
+         int amt = 0;
+         
+         if (convert) amt++;
+         if (apply) amt++;
++        if (applySession) amt++;
++        if (restoreSession) amt++;
++        if (prepare) amt++;
+         if (create) amt++;
+         if (dump) amt++;
++        if (dumpSafe) amt++;
+         if (scale) amt++;
+         if (listen) amt++;
+         if (export) amt++;
+         if (probe) amt++;
++        if (checkReadback) amt++;
++        if (verify) amt++;
+         
+         if (amt > 1) {
+             MMLog(BOLD RED "One command at a time, son!" RESET);
+@@ -136,10 +157,30 @@ int main(int argc, char * argv[]) {
+             return 0;
+         }
+         
+-        if (apply) {
++        if (prepare) {
++            NSString *prepared = [settings objectForKey:@"prepared"];
++            NSString *prior = [settings objectForKey:@"prior"];
++            if (!prepared || !prior) {
++                MMLog(BOLD RED "--prepare requires --prepared and --prior output paths" RESET);
++                return EXIT_FAILURE;
++            }
++            NSError *error = nil;
++            BOOL success = prepareSessionCapes([settings objectForKey:@"prepare"], prepared, prior, &error);
++            if (!success)
++                MMLog(BOLD RED "%s" RESET, error.localizedDescription.UTF8String);
++            return success ? EXIT_SUCCESS : EXIT_FAILURE;
++        } else if (applySession) {
++            NSString *expected = [settings objectForKey:@"expect"];
++            if (!expected) {
++                MMLog(BOLD RED "--apply-session requires --expect prior.cape" RESET);
++                return EXIT_FAILURE;
++            }
++            return applyCapeSessionAtPath([settings objectForKey:@"apply-session"], expected) ? EXIT_SUCCESS : EXIT_FAILURE;
++        } else if (restoreSession) {
++            return restoreCapeSessionAtPath([settings objectForKey:@"restore-session"]) ? EXIT_SUCCESS : EXIT_FAILURE;
++        } else if (apply) {
+             // Apply a cape at a given path
+-            applyCapeAtPath([settings objectForKey:@"apply"]);
+-            goto fin;
++            return applyCapeAtPath([settings objectForKey:@"apply"]) ? EXIT_SUCCESS : EXIT_FAILURE;
+         } else if (create || convert) {
+             NSError *error  = nil;
+             NSString *input = create ? [settings objectForKey:@"create"] : [settings objectForKey:@"convert"];
+@@ -163,9 +204,19 @@ int main(int argc, char * argv[]) {
+             }
+             goto fin;
+ 
++        } else if (verify) {
++            return verifyCapeAtPath([settings objectForKey:@"verify"]) ? EXIT_SUCCESS : EXIT_FAILURE;
++        } else if (checkReadback) {
++            return checkCursorReadback() ? EXIT_SUCCESS : EXIT_FAILURE;
+         } else if (probe) {
+             probeCursorOverrides();
+             goto fin;
++        } else if (dumpSafe) {
++            NSError *error = nil;
++            BOOL success = dumpCursorsSafelyToFile([settings objectForKey:@"dump-safe"], &error);
++            if (!success)
++                MMLog(BOLD RED "%s" RESET, error.localizedDescription.UTF8String);
++            return success ? EXIT_SUCCESS : EXIT_FAILURE;
+         } else if (dump) {
+             dumpCursorsToFile([settings objectForKey:@"dump"], ^BOOL (NSUInteger progress, NSUInteger total) {
+                 MMLog("Dumped %lu of %lu", (unsigned long)progress, (unsigned long)total);
+@@ -193,4 +244,3 @@ int main(int argc, char * argv[]) {
+         return EXIT_SUCCESS;
+     }
+ }
+-
+diff --git a/src/restore.h b/src/restore.h
+index 48f4d9d..8522a7a 100644
+--- a/src/restore.h
++++ b/src/restore.h
+@@ -11,6 +11,8 @@
+ 
+ extern NSString *restoreStringForIdentifier(NSString *identifier);
+ extern void restoreCursorForIdentifier(NSString *ident);
+-extern void resetAllCursors(void);
++extern BOOL resetAllCursors(void);
++/// Restores registered cursors without changing Mousecape preferences.
++extern BOOL resetAllCursorsWithoutPreferenceChanges(void);
+ 
+ #endif
+diff --git a/src/restore.m b/src/restore.m
+index 6561e7f..d3bf93d 100644
+--- a/src/restore.m
++++ b/src/restore.m
+@@ -29,7 +29,7 @@ void restoreCursorForIdentifier(NSString *ident) {
+     CGSRemoveRegisteredCursor(CGSMainConnectionID(), (char *)ident.UTF8String, false);
+ }
+ 
+-void resetAllCursors() {
++static BOOL resetAllCursorsUpdatingPreferences(BOOL updatePreferences) {
+     MMLog("Restoring cursors...");
+     
+     // Backup main cursors first
+@@ -47,13 +47,25 @@ void resetAllCursors() {
+     // Backup auxiliary cursors
+     MMLog("Restoring core cursors...");
+     if (CoreCursorUnregisterAll(CGSMainConnectionID()) == 0) {
+-        MCSetDefault(NULL, MCPreferencesAppliedCursorKey);
++        if (updatePreferences)
++            MCSetDefault(NULL, MCPreferencesAppliedCursorKey);
+         
+         for (int x = 0; x < 45; x++) {
+             CoreCursorSet(CGSMainConnectionID(), x);
+         }
+         
+         MMLog(BOLD GREEN "Successfully restored all cursors." RESET);
+-    } else
++        return YES;
++    } else {
+         MMLog(BOLD RED "Received an error while restoring core cursors." RESET);
++        return NO;
++    }
++}
++
++BOOL resetAllCursors() {
++    return resetAllCursorsUpdatingPreferences(YES);
++}
++
++BOOL resetAllCursorsWithoutPreferenceChanges() {
++    return resetAllCursorsUpdatingPreferences(NO);
+ }
