@@ -29,7 +29,7 @@ When delegating:
 - Delegate independent research in parallel to no more than the available safe concurrency.
 - Handle trivial answers, known one-line edits, and tightly coupled cross-cutting work directly.
 
-Default routine bounded delegation to the GPT-5.6 family. Prefer `gpt-5.6-terra` at low or medium reasoning; use another GPT-5.6 model when it better fits the subtask. Use GPT-6-family models only for genuinely complex or high-risk work, or after a GPT-5.6 result is insufficient. Prefer the lowest-power adequate model and reasoning level.
+Default routine bounded investigation, implementation, and review to `gpt-6.1-terra` at low or medium reasoning when model selection is available. Choose the lowest-power adequate model and reasoning level. Escalate only for demonstrated inadequacy or concrete task risk; explain why. Never select `gpt-6-astra` unless the user explicitly requests it. Respect higher-priority restrictions and available model options.
 
 Give each agent a narrow objective, relevant paths, and an output contract. The main agent owns integration, safety decisions, user communication, and cross-cutting changes. Never delegate permission decisions or destructive actions.
 
@@ -37,7 +37,7 @@ Give each agent a narrow objective, relevant paths, and an output contract. The 
 
 For development work, assign an independent reviewer for each agent's implementation before integrating or deploying it. The reviewer must inspect the changes and relevant tests, not merely accept the builder's report. Resolve blocking findings and have the reviewer check the corrections. For main-agent implementation, use a separate reviewer when delegation is available. If independent review is unavailable, disclose that limitation; do not claim the work was independently reviewed.
 
-Choose reviewer capability by risk. GPT-6-family models may handle complex implementation and review; GPT-5.6-family models are suitable for simpler bounded tasks. A reviewer must be different from the author, but need not use a different model family.
+Choose reviewer capability by risk; use the lowest-power adequate model. A reviewer must be different from the author, but need not use a different model family.
 
 ## Wait
 
