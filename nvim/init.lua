@@ -1241,6 +1241,7 @@ vim.keymap.set("n", "<leader>uu", dotfiles_update.update, { desc = "Update Dotfi
 vim.keymap.set("n", "<leader>uU", dotfiles_update.check, { desc = "Check Dotfiles Update" })
 require("writing_tools").setup()
 require("project_stats").setup()
+require("xtool").setup()
 
 -- Shared run keys use the C++ runner for C++ buffers.
 local cpp_runner = require("cpp_runner").setup()
@@ -3067,8 +3068,6 @@ vim.diagnostic.config({
     },
 })
 
-local lsp_util = require("lspconfig.util")
-
 local ignored_diag_items = {}
 local original_diagnostic_get = vim.diagnostic.get
 local original_diagnostic_show = vim.diagnostic.show
@@ -3638,7 +3637,8 @@ vim.lsp.config["lemminx"] = {
 vim.lsp.config["sourcekit"] = {
     capabilities = cmp_caps,
     cmd = (vim.fn.executable("xcrun") == 1) and { "xcrun", "sourcekit-lsp" } or { "sourcekit-lsp" },
-    root_dir = lsp_util.root_pattern("Package.swift", ".git", "*.xcodeproj", "*.xcworkspace"),
+    cmd_env = require("swift_toolchain").environment(),
+    -- Keep nvim-lspconfig's callback-based root detection for SwiftPM, BSP and Xcode.
 }
 
 -- Do not let slow LSP `textDocument/willSave` requests block `:write`.
