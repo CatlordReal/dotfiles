@@ -3,6 +3,10 @@
 import argparse,json,os,time,uuid,urllib.request,urllib.error
 from pathlib import Path
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs): return None
+
+
 def main():
  p=argparse.ArgumentParser();p.add_argument('--wait',type=int,default=0);p.add_argument('--ack');args=p.parse_args()
  if not 0<=args.wait<=60:p.error('Wait must be between 0 and 60 seconds')
@@ -16,7 +20,7 @@ def main():
  c=json.loads(path.read_text());receipts=path.parent/'receipts'/chat;receipts.mkdir(mode=0o700,parents=True,exist_ok=True)
  def post(endpoint,data):
   req=urllib.request.Request(c['url'].rstrip('/')+'/api/inbox'+endpoint,data=json.dumps(data).encode(),headers={'Authorization':'Bearer '+c['agentToken'],'Content-Type':'application/json'})
-  with urllib.request.urlopen(req,timeout=10) as response:return json.load(response)
+  with urllib.request.build_opener(NoRedirect()).open(req,timeout=10) as response:return json.load(response)
  if args.ack:
   receipt=receipts/(str(uuid.UUID(args.ack))+'.json');data=json.loads(receipt.read_text())
   post('/agent/ack',dict(chatId=chat,id=data['id'],leaseToken=data['leaseToken']));receipt.unlink();print('Inbox reply acknowledged.');return
