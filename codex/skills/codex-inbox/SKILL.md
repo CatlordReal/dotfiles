@@ -16,13 +16,15 @@ Kinds:
 - `optional`: blue; a preference or helpful answer that does not prevent independent progress. State the default when useful.
 - `progress`: purple; intermediate work, silent by default. Publish at meaningful milestones and roughly every five minutes of active work when there is something new to report; do not manufacture repetitive updates.
 
+Keep event headings and chat names descriptive. Use `--preview` for a short sentence or a few words (at most 60 characters) shown below the heading and in notifications; put full details in `--body`. Leave `--preview` off for legacy text behavior. For an `input` or `optional` request with a clear binary choice, use `--accept-decline` only when Accept and Decline are meaningful answers; otherwise use a text reply. These choices are ordinary user replies, never tool approvals.
+
 Only `input` and `optional` appear in the pending requests box. Do not label progress, task failures, or success as user requests. Never claim a tool needs human approval from a slow call, PermissionRequest hook, or missing activity; use authoritative host evidence. Inbox messages never approve tools or bypass permission checks.
 
 Example (the summary is a positional argument, body is optional):
 
 ```sh
 python3 /path/to/codex-inbox/scripts/publish.py progress 'Build passes; checking notifications'
-python3 /path/to/codex-inbox/scripts/publish.py optional 'Choose the list layout' --body 'Compact or comfortable? Continuing with comfortable.'
+python3 /path/to/codex-inbox/scripts/publish.py optional 'Choose the list layout' --preview 'Compact or comfortable?' --body 'Continuing with comfortable unless you prefer compact.'
 ```
 
 Emit the same substantive information in the current ChatGPT/Codex chat using commentary, the normal question tool, or the final response. Inbox supplements that conversation; it is not a replacement transcript. Keep the existing ntfy notifications active in parallel until the user explicitly declares Inbox ready. Progress remains silent in both channels unless explicitly requested otherwise.

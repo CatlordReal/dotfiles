@@ -97,6 +97,25 @@ def send_ntfy(url,message,timeout):
     request=urllib.request.Request(url,data=message.encode(),headers={"Title":"Codex watchdog","Content-Type":"text/plain; charset=utf-8"},method="POST")
     with urllib.request.urlopen(request,timeout=timeout) as response:response.read(1)
 
+def send_inbox(thread_id,timeout):
+    session_key(thread_id)
+    publisher=Path.home()/".codex"/"skills"/"codex-inbox"/"scripts"/"publish.py"
+    env=os.environ.copy();env["CODEX_THREAD_ID"]=thread_id
+    result=subprocess.run([sys.executable,str(publisher),"blocker","Chat inactive","--preview","Task may need attention","--body","Task inactive; may need attention. No verified wrapped command or tracked subagent is active; unwrapped command state is unknown."],env=env,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=timeout)
+    if result.returncode:raise RuntimeError("Inbox delivery unavailable or queued")
+
+def notify_idle(args,message,session):
+    # Keep ntfy and Inbox independent while bounding the alert to one network window.
+    def deliver(name,fn):
+        try:fn();log(args.log_file,name+"-sent",session)
+        except Exception:log(args.log_file,name+"-outcome-unknown",session)
+    timeout=args.network_timeout
+    tasks=[threading.Thread(target=deliver,args=("alert",lambda:send_ntfy(args.ntfy_url,message,timeout)),daemon=True),
+           threading.Thread(target=deliver,args=("inbox-alert",lambda:send_inbox(args.thread_id,timeout)),daemon=True)]
+    for task in tasks:task.start()
+    deadline=time.monotonic()+timeout+0.5
+    for task in tasks:task.join(max(0,deadline-time.monotonic()))
+
 def log(path,event,session):
     if not path:return
     path.parent.mkdir(parents=True,exist_ok=True)
@@ -144,8 +163,7 @@ def watch(args):
                 message=f"🔴 Codex task inactive for {int(mono-latch.last)}s; possibly waiting or stuck. No verified wrapped command or tracked subagent is active; unwrapped command state is unknown."
                 if args.dry_run:print(message,flush=True);log(args.log_file,"dry-run-alert",session)
                 else:
-                    try:send_ntfy(args.ntfy_url,message,args.network_timeout);log(args.log_file,"alert-sent",session)
-                    except Exception as error:print(f"watchdog notification outcome unknown: {type(error).__name__}",file=sys.stderr);log(args.log_file,"alert-outcome-unknown",session)
+                    notify_idle(args,message,session)
             stopping.wait(args.poll)
     finally:
         log(args.log_file,"stopped",session);(store.root/"watcher.json").unlink(missing_ok=True);lock.close()

@@ -8,8 +8,10 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('kind',nargs='?',choices=['success','blocker','input','optional','progress']);p.add_argument('summary',nargs='?');p.add_argument('--body',default='');p.add_argument('--title');p.add_argument('--flush',action='store_true');p.add_argument('--resolve');p.add_argument('--done',action='store_true');args=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('kind',nargs='?',choices=['success','blocker','input','optional','progress']);p.add_argument('summary',nargs='?');p.add_argument('--body',default='');p.add_argument('--preview');p.add_argument('--title');p.add_argument('--flush',action='store_true');p.add_argument('--resolve');p.add_argument('--done',action='store_true');p.add_argument('--accept-decline',action='store_true');args=p.parse_args()
  if args.done and args.kind!='success':p.error('--done requires success')
+ if args.accept_decline and args.kind not in ('input','optional'):p.error('--accept-decline requires input or optional')
+ if args.preview is not None and not args.kind:p.error('--preview requires an event kind')
  config_path=Path(os.environ.get('CODEX_INBOX_CONFIG',str(Path.home()/'.config/codex-inbox/agent.json')))
  if not config_path.is_file():raise SystemExit('Inbox unavailable: host configuration missing; keep ntfy active.')
  if config_path.stat().st_mode&0o077:raise SystemExit('Inbox configuration must be mode 0600.')
@@ -23,7 +25,11 @@ def main():
   chat=os.environ.get('CODEX_THREAD_ID')
   if not chat:raise SystemExit('CODEX_THREAD_ID unavailable; refusing to guess chat.')
   if not args.summary:raise SystemExit('Summary required.')
+  if not args.summary.strip():raise SystemExit('Summary required.')
+  if args.preview is not None and (not args.preview.strip() or len(args.preview.strip())>60):raise SystemExit('Preview must be 1–60 characters.')
   event=dict(id=str(uuid.uuid4()),chatId=chat,hostId=config['hostId'],kind=args.kind,summary=args.summary,body=args.body)
+  if args.preview is not None:event['preview']=args.preview.strip()
+  if args.accept_decline:event['responseType']='accept-decline'
   if args.title:event['title']=args.title
   if args.done:event['lifecycle']='done'
   target=spool/(event['id']+'.json')
