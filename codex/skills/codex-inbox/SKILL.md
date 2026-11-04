@@ -9,6 +9,10 @@ Use the helper beside this skill at `scripts/publish.py`. It uses a private host
 
 For the main agent only, publish concise task milestones and action requests. Subagents report to their parent; they must not duplicate parent notifications. Use `CODEX_THREAD_ID` as the chat identifier, never a guessed or native session identifier. Supply the actual chat title when known. Linux configuration adds the penguin prefix automatically through host metadata.
 
+## Start working
+
+At the start of every main-agent work turn, before investigation or tool work, publish a `progress` event (silent by default; the user may enable progress notifications) even if no question or blocker exists. For example: `python3 /path/to/codex-inbox/scripts/publish.py progress "Working" --preview "Starting work"`. Use a short task-specific preview when known and the exact `CODEX_THREAD_ID`. This enrolls the chat and marks it active using the existing activity lifecycle. Subagents report through their parent; do not create duplicate chats. Do not mark idle chats active or send artificial keepalives. Continue meaningful progress updates during work and report the final outcome explicitly.
+
 Kinds:
 - `success`: green; the entire requested task completed; always include `--done`.
 - `blocker`: red; work cannot proceed, but no question is being asked.
