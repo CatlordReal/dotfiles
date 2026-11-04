@@ -27,7 +27,8 @@ def main():
   if not args.summary:raise SystemExit('Summary required.')
   if not args.summary.strip():raise SystemExit('Summary required.')
   if args.preview is not None and (not args.preview.strip() or len(args.preview.strip())>60):raise SystemExit('Preview must be 1–60 characters.')
-  event=dict(id=str(uuid.uuid4()),chatId=chat,hostId=config['hostId'],kind=args.kind,summary=args.summary,body=args.body)
+  kind='progress' if args.kind=='success' and not args.done else args.kind
+  event=dict(id=str(uuid.uuid4()),chatId=chat,hostId=config['hostId'],kind=kind,summary=args.summary,body=args.body)
   if args.preview is not None:event['preview']=args.preview.strip()
   if args.accept_decline:event['responseType']='accept-decline'
   if args.title:event['title']=args.title

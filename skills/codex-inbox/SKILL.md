@@ -10,7 +10,7 @@ Use the helper beside this skill at `scripts/publish.py`. It uses a private host
 For the main agent only, publish concise task milestones and action requests. Subagents report to their parent; they must not duplicate parent notifications. Use `CODEX_THREAD_ID` as the chat identifier, never a guessed or native session identifier. Supply the actual chat title when known. Linux configuration adds the penguin prefix automatically through host metadata.
 
 Kinds:
-- `success`: green; a requested task or meaningful deliverable completed. Distinguish remaining work.
+- `success`: green; the entire requested task completed; always include `--done`.
 - `blocker`: red; work cannot proceed, but no question is being asked.
 - `input`: yellow; a reply is required for a real unresolved dependency or confirmed human-facing approval.
 - `optional`: blue; a preference or helpful answer that does not prevent independent progress. State the default when useful.
@@ -27,7 +27,7 @@ python3 /path/to/codex-inbox/scripts/publish.py progress 'Build passes; checking
 python3 /path/to/codex-inbox/scripts/publish.py optional 'Choose the list layout' --preview 'Compact or comfortable?' --body 'Continuing with comfortable unless you prefer compact.'
 ```
 
-Emit the same substantive information in the current ChatGPT/Codex chat using commentary, the normal question tool, or the final response. Inbox supplements that conversation; it is not a replacement transcript. Keep the existing ntfy notifications active in parallel until the user explicitly declares Inbox ready. Progress remains silent in both channels unless explicitly requested otherwise.
+Emit the same substantive information in the current ChatGPT/Codex chat using commentary, the normal question tool, or the final response. Inbox is a separate concise channel, not a mirror of the Codex transcript. Publish only explicit Inbox events. Keep the existing ntfy notifications active in parallel until the user explicitly declares Inbox ready. Progress remains silent in both channels unless explicitly requested otherwise.
 
 The helper assigns a stable event ID and privately spools failed deliveries. `--flush` retries those same IDs, so retries do not duplicate events. The helper prints its event ID. Save that ID; use `--resolve EVENT_ID` when the corresponding question was answered in the original ChatGPT chat or explicitly dismissed. This resolves only a request on the same host; it never approves a tool. Do not mark an unanswered request resolved because time passed. A delivered inbox reply appears in the original thread through the configured host bridge; never claim delivery without its acknowledgement. If Inbox fails, keep working through the original chat and report the availability limit when material.
 
@@ -41,4 +41,4 @@ This cooperative route works only while an agent is active and invokes the helpe
 
 ## Live status
 
-Progress, required replies, optional preferences, and blockers update the reported run shown in Live Activities. Use `publish.py success 'Task complete' --done` only for the final successful completion of the requested task, so the activity can end. A completed milestone is ordinary `success` without `--done`; do not prematurely stop a still-running task. Reports become visibly stale after 330 seconds without a new report. Elapsed time is task wall time, not billed/model compute time. Inbox only lists chats whose agent has published or received an actual reply; seven days without Inbox activity automatically archives a chat, preserving history. Fresh events restore an automatically archived chat; manually archived chats stay archived.
+Progress, required replies, optional preferences, and blockers update the reported run shown in Live Activities. Use `publish.py success 'Task complete' --done` only for the final successful completion of the requested task, so the activity can end. A completed milestone or subtask is `progress`; do not prematurely mark a still-running task complete. Reports become visibly stale after 330 seconds without a new report. Elapsed time is task wall time, not billed/model compute time. Inbox only lists chats whose agent has published or received an actual reply; seven days without Inbox activity automatically archives a chat, preserving history. Fresh events restore an automatically archived chat; manually archived chats stay archived.
