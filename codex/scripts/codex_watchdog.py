@@ -105,13 +105,14 @@ def send_inbox(thread_id,timeout):
     if result.returncode:raise RuntimeError("Inbox delivery unavailable or queued")
 
 def notify_idle(args,message,session):
-    # Keep ntfy and Inbox independent while bounding the alert to one network window.
+    # Inbox is the default channel; ntfy requires explicit opt-in.
     def deliver(name,fn):
         try:fn();log(args.log_file,name+"-sent",session)
         except Exception:log(args.log_file,name+"-outcome-unknown",session)
     timeout=args.network_timeout
-    tasks=[threading.Thread(target=deliver,args=("alert",lambda:send_ntfy(args.ntfy_url,message,timeout)),daemon=True),
-           threading.Thread(target=deliver,args=("inbox-alert",lambda:send_inbox(args.thread_id,timeout)),daemon=True)]
+    tasks=[threading.Thread(target=deliver,args=("inbox-alert",lambda:send_inbox(args.thread_id,timeout)),daemon=True)]
+    if getattr(args,"enable_ntfy",False):
+        tasks.append(threading.Thread(target=deliver,args=("alert",lambda:send_ntfy(args.ntfy_url,message,timeout)),daemon=True))
     for task in tasks:task.start()
     deadline=time.monotonic()+timeout+0.5
     for task in tasks:task.join(max(0,deadline-time.monotonic()))
@@ -233,6 +234,7 @@ def start(args):
         probe=acquire(store.root/"watch.lock");probe.close();(store.root/"watcher.json").unlink(missing_ok=True)
         command=[sys.executable,str(Path(__file__).resolve()),"watch","--thread-id",args.thread_id,"--sessions-root",str(args.sessions_root),"--state-dir",str(args.state_dir),"--timeout",str(args.timeout),"--poll",str(args.poll),"--ntfy-url",args.ntfy_url,"--network-timeout",str(args.network_timeout),"--log-file",str(args.log_file)]
         if args.dry_run:command.append("--dry-run")
+        if args.enable_ntfy:command.append("--enable-ntfy")
         args.log_file.parent.mkdir(parents=True,exist_ok=True)
         with args.log_file.open("a",encoding="utf-8") as output:child=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=output,stderr=output,start_new_session=True)
         marker=store.root/"watcher.json";deadline=time.monotonic()+2
@@ -251,13 +253,13 @@ def stop(args):
     raise RuntimeError("watchdog did not stop within bounded wait")
 
 def common(item):
-    item.add_argument("--state-dir",type=Path,default=DEFAULT_STATE_DIR);item.add_argument("--ntfy-url",default="https://ntfy.sh/Catlord_Codex-Action_Request");item.add_argument("--network-timeout",type=float,default=10)
+    item.add_argument("--enable-ntfy",action="store_true",help="Send ntfy only when explicitly requested for this task");item.add_argument("--state-dir",type=Path,default=DEFAULT_STATE_DIR);item.add_argument("--ntfy-url",default="https://ntfy.sh/Catlord_Codex-Action_Request");item.add_argument("--network-timeout",type=float,default=10)
 def parser():
     root=argparse.ArgumentParser(description=__doc__);subs=root.add_subparsers(dest="mode",required=True)
     for name in ("watch","start"):
         item=subs.add_parser(name);item.add_argument("--thread-id",required=True);item.add_argument("--sessions-root",type=Path,default=Path.home()/".codex"/"sessions");item.add_argument("--timeout",type=float,default=300);item.add_argument("--poll",type=float,default=10);item.add_argument("--log-file",type=Path);item.add_argument("--dry-run",action="store_true");common(item)
     item=subs.add_parser("stop");item.add_argument("--thread-id",required=True);item.add_argument("--state-dir",type=Path,default=DEFAULT_STATE_DIR)
-    item=subs.add_parser("run-command");item.add_argument("--session-id",required=True);item.add_argument("--cwd",type=Path,required=True);item.add_argument("--state-dir",type=Path,default=DEFAULT_STATE_DIR);item.add_argument("command",nargs=argparse.REMAINDER)
+    item=subs.add_parser("run-command");item.add_argument("--session-id",required=True);item.add_argument("--cwd",type=Path,required=True);item.add_argument("--enable-ntfy",action="store_true",help="Send ntfy only when explicitly requested for this task");item.add_argument("--state-dir",type=Path,default=DEFAULT_STATE_DIR);item.add_argument("command",nargs=argparse.REMAINDER)
     item=subs.add_parser("hook");item.add_argument("--subagent-max-seconds",type=float,default=3600);item.add_argument("--sessions-root",type=Path,default=Path.home()/".codex"/"sessions");common(item)
     return root
 def main(argv=None):

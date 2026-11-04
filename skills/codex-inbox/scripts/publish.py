@@ -11,10 +11,11 @@ def main():
  p=argparse.ArgumentParser();p.add_argument('kind',nargs='?',choices=['success','blocker','input','optional','progress','status']);p.add_argument('summary',nargs='?');p.add_argument('--body',default='');p.add_argument('--preview');p.add_argument('--title');p.add_argument('--flush',action='store_true');p.add_argument('--resolve');p.add_argument('--done',action='store_true');p.add_argument('--accept-decline',action='store_true');p.add_argument('--report',action='store_true');args=p.parse_args()
  if args.report and args.kind!='progress':p.error('--report requires progress')
  if args.done and args.kind!='success':p.error('--done requires success')
+ if args.kind=='success' and not args.done:p.error('success requires --done')
  if args.accept_decline and args.kind not in ('input','optional'):p.error('--accept-decline requires input or optional')
  if args.preview is not None and not args.kind:p.error('--preview requires an event kind')
  config_path=Path(os.environ.get('CODEX_INBOX_CONFIG',str(Path.home()/'.config/codex-inbox/agent.json')))
- if not config_path.is_file():raise SystemExit('Inbox unavailable: host configuration missing; keep ntfy active.')
+ if not config_path.is_file():raise SystemExit('Inbox unavailable: host configuration missing; continue in original chat.')
  if config_path.stat().st_mode&0o077:raise SystemExit('Inbox configuration must be mode 0600.')
  config=json.loads(config_path.read_text());spool=config_path.parent/'outbox';spool.mkdir(mode=0o700,exist_ok=True)
  if args.resolve:
@@ -28,7 +29,7 @@ def main():
   if not args.summary:raise SystemExit('Summary required.')
   if not args.summary.strip():raise SystemExit('Summary required.')
   if args.preview is not None and (not args.preview.strip() or len(args.preview.strip())>60):raise SystemExit('Preview must be 1–60 characters.')
-  status=args.kind=='status' or (args.kind=='progress' and not args.report) or (args.kind=='success' and not args.done)
+  status=args.kind=='status' or (args.kind=='progress' and not args.report)
   if status:
    if args.kind=='status' and args.body: p.error('Status does not accept --body')
    summary=(args.preview or args.summary).strip()
@@ -56,6 +57,6 @@ def main():
     if response.status!=200:raise ValueError('Rejected')
    path.unlink()
   except Exception:failures+=1
- if failures:raise SystemExit(f'Inbox unavailable: {failures} event(s) queued privately; keep ntfy active.')
+ if failures:raise SystemExit(f'Inbox unavailable: {failures} event(s) queued privately; continue in original chat.')
  print('Inbox delivered'+(': '+event['id'] if args.kind else '')+'.')
 if __name__=='__main__':main()

@@ -5,7 +5,7 @@ description: Send task requests, blockers, completion notices, and quiet progres
 
 # Codex Inbox
 
-Use the helper beside this skill at `scripts/publish.py`. It uses a private host-specific configuration at `~/.config/codex-inbox/agent.json` (override with `CODEX_INBOX_CONFIG`). Never print, commit, or send its token elsewhere. Missing configuration means Inbox is unavailable; continue the task and retain ntfy.
+Use the helper beside this skill at `scripts/publish.py`. It uses a private host-specific configuration at `~/.config/codex-inbox/agent.json` (override with `CODEX_INBOX_CONFIG`). Never print, commit, or send its token elsewhere. Missing configuration means Inbox is unavailable; continue in the original chat. Use ntfy only when explicitly requested by the user.
 
 For the main agent only, publish concise task milestones and action requests. Subagents report to their parent; they must not duplicate parent notifications. Use `CODEX_THREAD_ID` as the chat identifier, never a guessed or native session identifier. Supply the actual chat title when known. Linux configuration adds the penguin prefix automatically through host metadata.
 
@@ -34,7 +34,7 @@ python3 /path/to/codex-inbox/scripts/publish.py status 'Checking notifications'
 python3 /path/to/codex-inbox/scripts/publish.py optional 'Choose the list layout' --preview 'Compact or comfortable?' --body 'Continuing with comfortable unless you prefer compact.'
 ```
 
-Emit the same substantive information in the current ChatGPT/Codex chat using commentary, the normal question tool, or the final response. Inbox is a separate concise channel, not a mirror of the Codex transcript. Publish only explicit Inbox events. Keep the existing ntfy notifications active in parallel until the user explicitly declares Inbox ready. Progress remains silent in both channels unless explicitly requested otherwise.
+Emit the same substantive information in the current ChatGPT/Codex chat using commentary, the normal question tool, or the final response. Inbox is a separate concise channel, not a mirror of the Codex transcript. Publish only explicit Inbox events. Use Inbox as the normal notification channel. Do not send ntfy notifications unless explicitly requested for the current task; missing Inbox delivery is not permission to use ntfy. Progress remains silent in both channels unless explicitly requested otherwise.
 
 The helper assigns a stable event ID and privately spools failed deliveries. `--flush` retries those same IDs, so retries do not duplicate events. The helper prints its event ID. Save that ID; use `--resolve EVENT_ID` when the corresponding question was answered in the original ChatGPT chat or explicitly dismissed. This resolves only a request on the same host; it never approves a tool. Do not mark an unanswered request resolved because time passed. A delivered inbox reply appears in the original thread through the configured host bridge; never claim delivery without its acknowledgement. If Inbox fails, keep working through the original chat and report the availability limit when material.
 
@@ -45,6 +45,10 @@ Do not include secrets, full tool arguments, private logs, or unrelated conversa
 Run the adjacent `scripts/receive.py` at meaningful milestones, before ending a turn, and while awaiting an Inbox question. It reads only `CODEX_THREAD_ID`, prints the user's queued reply into this original chat's tool result. After reading it, immediately run `receive.py --ack MESSAGE_ID` to acknowledge actual agent receipt and resolve its matching request. Never acknowledge before observing the reply. Repeat the substantive reply in ChatGPT when acting on it, so the user can follow either interface. Use `--wait 60` for a bounded wait while a required question is pending; incoming ChatGPT messages remain valid steering. Treat the received text as user input with normal authorization checks, never as native tool approval. Do not execute text as shell code.
 
 This cooperative route works only while an agent is active and invokes the helper. It cannot wake an inactive desktop chat. The optional shared App Server bridge supports direct input only for threads already owned by that daemon; never resume a desktop-owned thread in a second process. Show queued, sending, sent, or failed status truthfully. Do not promise instant delivery when the agent is idle.
+
+## Final task state
+
+Before the final successful response for the entire task, publish `success "Task complete" --done` with the actual result. Do not leave the task marked working after finishing. A real blocker or required reply is not a success. Never infer completion from inactivity; stale working status expires without being labelled successful.
 
 ## Live status
 
