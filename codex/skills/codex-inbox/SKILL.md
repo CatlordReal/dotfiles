@@ -9,16 +9,19 @@ Use the helper beside this skill at `scripts/publish.py`. It uses a private host
 
 For the main agent only, publish concise task milestones and action requests. Subagents report to their parent; they must not duplicate parent notifications. Use `CODEX_THREAD_ID` as the chat identifier, never a guessed or native session identifier. Supply the actual chat title when known. Linux configuration adds the penguin prefix automatically through host metadata.
 
-## Start working
+## Current status
 
-At the start of every main-agent work turn, before investigation or tool work, publish a `progress` event (silent by default; the user may enable progress notifications) even if no question or blocker exists. For example: `python3 /path/to/codex-inbox/scripts/publish.py progress "Working" --preview "Starting work"`. Use a short task-specific preview when known and the exact `CODEX_THREAD_ID`. This enrolls the chat and marks it active using the existing activity lifecycle. Subagents report through their parent; do not create duplicate chats. Do not mark idle chats active or send artificial keepalives. Continue meaningful progress updates during work and report the final outcome explicitly.
+At the start of every main-agent work turn, publish current status even if no question or blocker exists: `python3 /path/to/codex-inbox/scripts/publish.py status "Working" --preview "Starting work"`. Use a short task-specific status and the exact `CODEX_THREAD_ID`. Status enrolls the chat and updates its current activity and summaries only. It never adds a conversation event or notification, including when progress notifications are enabled. Use it for routine starts, plans, and "fixing xyz" updates. Subagents report through their parent. Do not mark idle chats active or send artificial keepalives.
+
+Use `progress --report` only for a meaningful intermediate result worth retaining in the conversation. Ordinary `progress` calls remain compatible but update status instead; routine activity must not become purple messages. Report final completion, a real blocker, or an actual question explicitly.
 
 Kinds:
 - `success`: green; the entire requested task completed; always include `--done`.
 - `blocker`: red; work cannot proceed, but no question is being asked.
 - `input`: yellow; a reply is required for a real unresolved dependency or confirmed human-facing approval.
 - `optional`: blue; a preference or helpful answer that does not prevent independent progress. State the default when useful.
-- `progress`: purple; intermediate work, silent by default. Publish at meaningful milestones and roughly every five minutes of active work when there is something new to report; do not manufacture repetitive updates.
+- `status`: current work for Live Activities and summaries only; never a message or notification.
+- `progress --report`: purple; meaningful intermediate results retained in the conversation, silent unless progress notifications are enabled. Do not announce routine plans or manufacture periodic messages.
 
 Keep event headings and chat names descriptive. Use `--preview` for a short sentence or a few words (at most 60 characters) shown below the heading and in notifications; put full details in `--body`. Leave `--preview` off for legacy text behavior. For an `input` or `optional` request with a clear binary choice, use `--accept-decline` only when Accept and Decline are meaningful answers; otherwise use a text reply. These choices are ordinary user replies, never tool approvals.
 
@@ -27,7 +30,7 @@ Only `input` and `optional` appear in the pending requests box. Do not label pro
 Example (the summary is a positional argument, body is optional):
 
 ```sh
-python3 /path/to/codex-inbox/scripts/publish.py progress 'Build passes; checking notifications'
+python3 /path/to/codex-inbox/scripts/publish.py status 'Checking notifications'
 python3 /path/to/codex-inbox/scripts/publish.py optional 'Choose the list layout' --preview 'Compact or comfortable?' --body 'Continuing with comfortable unless you prefer compact.'
 ```
 
@@ -45,4 +48,4 @@ This cooperative route works only while an agent is active and invokes the helpe
 
 ## Live status
 
-Progress, required replies, optional preferences, and blockers update the reported run shown in Live Activities. Use `publish.py success 'Task complete' --done` only for the final successful completion of the requested task, so the activity can end. A completed milestone or subtask is `progress`; do not prematurely mark a still-running task complete. Reports become visibly stale after 330 seconds without a new report. Elapsed time is task wall time, not billed/model compute time. Inbox only lists chats whose agent has published or received an actual reply; seven days without Inbox activity automatically archives a chat, preserving history. Fresh events restore an automatically archived chat; manually archived chats stay archived.
+Current status, meaningful progress reports, required replies, optional preferences, and blockers update the reported run shown in Live Activities. Use `publish.py success 'Task complete' --done` only for the final successful completion of the requested task, so the activity can end. A completed milestone or subtask is status, or `progress --report` when worth retaining; do not prematurely mark a still-running task complete. Reports become visibly stale after 330 seconds without a new report. Elapsed time is task wall time, not billed/model compute time. Inbox only lists chats whose agent has published or received an actual reply; seven days without Inbox activity automatically archives a chat, preserving history. Fresh events restore an automatically archived chat; manually archived chats stay archived.
