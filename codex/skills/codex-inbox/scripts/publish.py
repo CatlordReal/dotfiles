@@ -39,7 +39,7 @@ def main():
    event=dict(id=str(uuid.uuid4()),chatId=chat,hostId=config['hostId'],kind=args.kind,summary=args.summary,body=args.body)
    if args.preview is not None:event['preview']=args.preview.strip()
    if args.accept_decline:event['responseType']='accept-decline'
-   if args.done:event['lifecycle']='done'
+   if args.done:event['lifecycle']='done';event['reportedAt']=time.time()
    if args.report:event['report']=True
   if args.title:event['title']=args.title
   target=spool/(event['id']+'.json')

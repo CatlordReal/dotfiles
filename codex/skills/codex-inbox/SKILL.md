@@ -36,7 +36,7 @@ python3 /path/to/codex-inbox/scripts/publish.py optional 'Choose the list layout
 
 Emit the same substantive information in the current ChatGPT/Codex chat using commentary, the normal question tool, or the final response. Inbox is a separate concise channel, not a mirror of the Codex transcript. Publish only explicit Inbox events. Use Inbox as the normal notification channel. Do not send ntfy notifications unless explicitly requested for the current task; missing Inbox delivery is not permission to use ntfy. Progress remains silent in both channels unless explicitly requested otherwise.
 
-The helper assigns a stable event ID and privately spools failed deliveries. `--flush` retries those same IDs, so retries do not duplicate events. The helper prints its event ID. Save that ID; use `--resolve EVENT_ID` when the corresponding question was answered in the original ChatGPT chat or explicitly dismissed. This resolves only a request on the same host; it never approves a tool. Do not mark an unanswered request resolved because time passed. A delivered inbox reply appears in the original thread through the configured host bridge; never claim delivery without its acknowledgement. If Inbox fails, keep working through the original chat and report the availability limit when material.
+The helper assigns a stable event ID and privately spools failed deliveries. `--flush` retries those same IDs, so retries do not duplicate events. The helper prints its event ID. Save that ID; use `--resolve EVENT_ID` when the corresponding question was answered in the original ChatGPT chat or explicitly dismissed, or a previously reported blocker is no longer blocking work. This resolves only a request or blocker on the same host; it never approves a tool. Do not mark an unanswered request resolved because time passed. A delivered inbox reply appears in the original thread through the configured host bridge; never claim delivery without its acknowledgement. If Inbox fails, keep working through the original chat and report the availability limit when material.
 
 Do not include secrets, full tool arguments, private logs, or unrelated conversation content in summaries. Summaries appear on the phone lock screen. Body text stays in the private inbox. Keep credentials and runtime state out of the dotfiles backup. Linux runs the same helper and bridge with its own host-bound credentials; never reuse the Mac's host identity.
 
@@ -48,7 +48,7 @@ This cooperative route works only while an agent is active and invokes the helpe
 
 ## Final task state
 
-Before the final successful response for the entire task, publish `success "Task complete" --done` with the actual result. Do not leave the task marked working after finishing. A real blocker or required reply is not a success. Never infer completion from inactivity; stale working status expires without being labelled successful.
+Before the final successful response for the entire task, publish `success "Task complete" --done` with the actual result. Do not leave the task marked working after finishing. A real blocker or required reply is not a success. Fresh accepted status and final completion supersede older blockers, retaining their history as resolved. Final reports use a source timestamp so delayed delivery cannot end a newer run. Never infer completion from inactivity; stale working status expires without being labelled successful.
 
 ## Live status
 
